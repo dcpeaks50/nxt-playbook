@@ -139,6 +139,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <div class="seg" id="editmode" role="group" aria-label="Edit">
         <button data-v="play">Routes</button><button data-v="formation">Formation</button>
       </div>
+      <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
       <span id="edit-hint"></span>
       <span class="spacer"></span>
       <button class="btn sm" id="btn-dupplay">Duplicate play</button>
@@ -183,6 +184,7 @@ const sy = (y) => TOP - y;
 const TYPES = { O: ["run", "pass"], D: ["zone", "man", "blitz"] };
 
 // ---------------------------------------------------------------- sample playbook
+const JET_SNAP = 0.9; // starter Jet Sweep: snap as the motion man gets to the QB
 function samplePlaybook() {
   const F = (id, name, format, side, spots) => ({ id, name, format, side, spots: spots.map(([pos, x, y]) => ({ pos, x, y })), lineup: {} });
   const r = (pts, o = {}) => ({ pts, ...o });
@@ -258,9 +260,9 @@ function samplePlaybook() {
       X: r([[-16, 20]]), H: r([[-9, 4], [-6, 20]]), Y: r([[9, 4], [6, 20]]), Z: r([[16, 20]]),
     }, [{ t: 2.5, kind: "pass", to: "Y" }], "All four go deep; hit the open seam."),
     P("p7jet", "Jet Sweep", "f7s", "run", {
-      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.3, -4.3]], { speed: 3 }), H: r([[-6, -2.3], [0, -3.6], [8, -2.5], [15, 2], [15, 14]], { speed: 7, curve: true }),
+      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.3, -4.3]], { speed: 3 }), H: r([[-6, -2.3], [0, -3.6], [8, -2.5], [15, 2], [15, 14]], { speed: 7, curve: true, motion: true, star: true }),
       RB: r([[-3.5, -3], [-5, 0]]), Y: r([[10, 2]], { end: "block" }), Z: r([[17, 3.5]], { end: "block" }), X: r([[-16, 9]]),
-    }, [{ t: 1.35, kind: "handoff", to: "H" }], "H comes in full speed; QB hands it off on the run. Y and Z block the edge."),
+    }, [{ t: 1.35, kind: "handoff", to: "H" }], "H goes in motion. Snap as he gets to the QB, hand it off on the run, and Y and Z block the edge."),
     P("p7smash", "Bunch Smash", "f7b", "pass", {
       C: r([[0, 1]], { end: "block" }), QB: r([[0, -6.5]], { speed: 3 }), RB: r([[-2.5, -3], [-6, 0]]),
       Y: r([[11.5, 6], [17, 12]]), Z: r([[13, 5], [13, 4]]), H: r([[13.5, -1], [18, 0]]), X: r([[-16, 10], [-6, 10]]),
@@ -301,6 +303,7 @@ function samplePlaybook() {
       R: r([[0, -4]], { speed: 6 }), LCB: r([[-11, 4], [-9, 7]]), RCB: r([[11, 4], [9, 7]]), LB: r([[0, 7]]), S: r([[6, 16]]),
     }, [], "Corners sit underneath, LB takes the middle, safety rotates deep."),
   ];
+  plays.find((p) => p.id === "p7jet").snap = JET_SNAP;
   const packages = [
     { id: "pk_open", name: "Opening script", playIds: ["p11dive", "p11bubble", "p11boot", "p7slant", "p7jet", "p5mesh", "p5sweep"] },
     { id: "pk_xp", name: "Extra point", playIds: ["p11xp", "p5xp", "p7slant"] },
@@ -322,13 +325,36 @@ if ((book.version || 1) < 2) {
   }
   book.version = 2;
 }
+// v3: motion. The starter Jet Sweep goes in motion (only if it hasn't been changed).
+if (book.version < 3) {
+  const jet = book.plays.find((p) => p.id === "p7jet");
+  if (jet && !jet.snap && jet.paths?.H && !jet.paths.H.motion) { jet.paths.H.motion = true; jet.snap = JET_SNAP; jet.notes = "H goes in motion. Snap as he gets to the QB, hand it off on the run, and Y and Z block the edge."; }
+  book.version = 3;
+}
 const prefs = store.get(PREFS, {});
 const state = {
   format: prefs.format || "11", side: prefs.side || "all", formationId: null, type: "all", pkg: "all",
   playId: null, labels: prefs.labels || "pos", ghost: prefs.ghost !== false,
   mode: "view", editMode: "play", selPos: null, t: 0, playing: false, rate: 1,
 };
-const save = () => store.set(KEY, book);
+// Every save keeps the version before it, so Undo can step back through changes (up to 60).
+const undoStack = [];
+let lastSaved = JSON.stringify(book);
+const save = () => {
+  const now = JSON.stringify(book);
+  if (now === lastSaved) return;
+  undoStack.push(lastSaved); if (undoStack.length > 60) undoStack.shift();
+  lastSaved = now; store.set(KEY, book);
+  const u = document.getElementById("btn-undo"); if (u) u.disabled = false;
+};
+function undo() {
+  if (!undoStack.length) return;
+  book = JSON.parse(undoStack.pop()); lastSaved = JSON.stringify(book); store.set(KEY, book);
+  if (state.playId && !book.plays.some((p) => p.id === state.playId)) state.playId = null;
+  if (state.formationId && !formationById(state.formationId)) state.formationId = null;
+  $("#btn-undo").disabled = !undoStack.length;
+  refresh();
+}
 const savePrefs = () => store.set(PREFS, { format: state.format, side: state.side, labels: state.labels, ghost: state.ghost });
 
 const formationById = (id) => book.formations.find((f) => f.id === id);
@@ -367,9 +393,10 @@ function routePts(spot, path) {
   }
   return out;
 }
-function posAt(spot, path, fmt, t) {
+function posAt(spot, path, fmt, t, snap = 0) {
   if (!path?.pts?.length) return { x: spot.x, y: spot.y };
-  let tt = t - (path.delay || 0);
+  // Players in motion start right away; everyone else waits for the snap.
+  let tt = t - (path.motion ? 0 : snap) - (path.delay || 0);
   if (tt <= 0) return { x: spot.x, y: spot.y };
   const v = pathSpeed(path, spot.pos, fmt), pts = routePts(spot, path);
   for (let i = 1; i < pts.length; i++) {
@@ -379,12 +406,12 @@ function posAt(spot, path, fmt, t) {
   }
   return pts[pts.length - 1];
 }
-function pathDuration(spot, path, fmt) {
+function pathDuration(spot, path, fmt, snap = 0) {
   if (!path?.pts?.length) return 0;
   const pts = routePts(spot, path);
   let L = 0;
   for (let i = 1; i < pts.length; i++) L += dist(pts[i - 1], pts[i]);
-  return (path.delay || 0) + L / pathSpeed(path, spot.pos, fmt);
+  return (path.motion ? 0 : snap) + (path.delay || 0) + L / pathSpeed(path, spot.pos, fmt);
 }
 const DASH = { solid: "", dotted: "0.01 0.55", dashed: "0.9 0.55" };
 const PALETTE = ["#ffffff", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
@@ -392,7 +419,7 @@ const textOn = (hex) => { const n = parseInt(hex.slice(1), 16), r = n >> 16, g =
 const starPoints = (cx, cy, R, r = R * 0.48) => Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, d = i % 2 ? r : R; return `${cx + d * Math.cos(a)},${cy + d * Math.sin(a)}`; }).join(" ");
 function playerPos(play, f, pos, t) {
   const spot = f.spots.find((s) => s.pos === pos);
-  return spot ? posAt(spot, play?.paths?.[pos], f.format, t) : { x: 0, y: 0 };
+  return spot ? posAt(spot, play?.paths?.[pos], f.format, t, play?.snap || 0) : { x: 0, y: 0 };
 }
 const FLIGHT = { pass: 13, pitch: 9, snap: 12 };
 function flightTime(play, f, fromPos, toPos, kind, t0, holderPt) {
@@ -406,7 +433,7 @@ function ballAt(play, f, t) {
   let holder = has("C") ? "C" : f.spots[0]?.pos;
   if (!holder || f.side !== "O") return null;
   const evs = [];
-  if (has("QB") && holder !== "QB") evs.push({ t: 0, kind: "snap", to: "QB" });
+  if (has("QB") && holder !== "QB") evs.push({ t: play?.snap || 0, kind: "snap", to: "QB" });
   evs.push(...(play?.events || []).filter((e) => has(e.to)).slice().sort((a, b) => a.t - b.t));
   for (const e of evs) {
     if (t < e.t) break;
@@ -425,7 +452,7 @@ function ballAt(play, f, t) {
 function playDuration(play, f) {
   if (!play || !f) return 0;
   let d = 0;
-  for (const s of f.spots) d = Math.max(d, pathDuration(s, play.paths?.[s.pos], f.format));
+  for (const s of f.spots) d = Math.max(d, pathDuration(s, play.paths?.[s.pos], f.format, play.snap || 0));
   for (const e of play.events || []) d = Math.max(d, e.t + 1);
   return Math.min(12, Math.max(3, d + 0.6));
 }
@@ -518,7 +545,7 @@ function draw() {
   // players
   for (const sp of f.spots) {
     const path = play?.paths?.[sp.pos];
-    const p = posAt(sp, path, f.format, t);
+    const p = posAt(sp, path, f.format, t, play?.snap || 0);
     const off = f.side === "O", sel = editing && state.selPos === sp.pos;
     const fill = path?.color || (off ? "#ffffff" : "#dc2626"), ink = textOn(fill);
     const label = nameFor(f, sp.pos), fs = label.length > 3 ? 0.62 : 0.8;
@@ -536,6 +563,12 @@ function draw() {
     if (ball.flying) s += `<ellipse cx="${ball.x}" cy="${sy(ball.y)}" rx="0.45" ry="0.22" fill="#000" opacity=".3"/>`;
     s += `<g transform="translate(${bx} ${by}) rotate(${ball.flying ? -30 : -20})"><ellipse rx="${0.55 + ball.air * 0.12}" ry="${0.34 + ball.air * 0.07}" fill="#8b4513" stroke="#3b1d07" stroke-width="0.08"/><line x1="-0.2" x2="0.2" y1="0" y2="0" stroke="#fff" stroke-width="0.07"/></g>`;
   }
+  // Motion plays: "MOTION…" until the snap, then a quick "SNAP!"
+  const snapT = play?.snap || 0;
+  if (f.side === "O" && snapT > 0 && t > 0) {
+    const label = t < snapT ? "MOTION…" : t < snapT + 0.7 ? "SNAP!" : "";
+    if (label) s += `<text x="0" y="${sy(-9.3)}" text-anchor="middle" font-size="1.6" font-weight="900" fill="${label === "SNAP!" ? "#facc15" : "#fff"}" stroke="#0b1220" stroke-width="0.08" paint-order="stroke">${label}</text>`;
+  }
   svg.innerHTML = s;
 }
 
@@ -546,6 +579,9 @@ function setT(t) {
   state.t = Math.max(0, Math.min(d, t));
   $("#scrub").value = d ? Math.round((state.t / d) * 1000) : 0;
   $("#time").textContent = `${state.t.toFixed(1)}s / ${d.toFixed(1)}s`;
+  const sn = $("#setsnap"), ev = $("#evadd");
+  if (sn) sn.textContent = `Set snap here (${state.t.toFixed(1)}s)`;
+  if (ev) ev.textContent = `Add at ${state.t.toFixed(1)}s`;
   draw();
 }
 function tick(ts) {
@@ -569,6 +605,7 @@ $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
 $("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(currentPlay(), currentFormation())); };
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input,textarea,select")) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && state.mode === "edit") { e.preventDefault(); undo(); return; }
   if (e.code === "Space") { e.preventDefault(); setPlaying(!state.playing); }
   if (e.key === "ArrowRight") setT(state.t + 0.1);
   if (e.key === "ArrowLeft") setT(state.t - 0.1);
@@ -666,6 +703,7 @@ $("#btn-dupform").onclick = () => {
 function enterEdit(mode) { setPlaying(false); state.mode = "edit"; state.editMode = mode; state.t = 0; }
 $("#btn-edit").onclick = () => { if (state.mode === "edit") { state.mode = "view"; state.selPos = null; } else enterEdit(currentPlay() ? "play" : "formation"); refresh(); };
 $("#btn-done").onclick = () => { state.mode = "view"; state.selPos = null; refresh(); };
+$("#btn-undo").onclick = undo;
 $("#editmode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.v === "play" && !currentPlay()) return; state.editMode = b.dataset.v; state.selPos = null; setT(0); refresh(); };
 $("#btn-dupplay").onclick = () => {
   const p = currentPlay(); if (!p) return;
@@ -698,6 +736,7 @@ function renderTitle() {
   $("#editbar").hidden = !editing;
   setSeg($("#editmode"), state.editMode);
   $("#btn-dupplay").hidden = $("#btn-delplay").hidden = !p;
+  $("#btn-undo").disabled = !undoStack.length;
   $("#edit-hint").textContent = state.editMode === "formation"
     ? "Drag players to set the formation. Every play in this formation starts from here."
     : state.selPos ? `Drag from ${state.selPos} to draw their line, one piece at a time (or click to add a point). Drag the dots to reshape it.` : "Press on a player and drag to draw their line.";
@@ -720,12 +759,16 @@ function renderDetails() {
       <div class="row"><label>End</label>${opt("end", pathEnd(path, sel, f.format), [["arrow", "→ Running"], ["block", "⊥ Blocking"]])}</div>
       <div class="row"><label>Color</label><span class="swatches">${PALETTE.map((c) => `<button class="sw" data-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${path?.color === c}"></button>`).join("")}<button class="btn sm" data-color="">Default</button></span></div>
       <div class="row"><label>Ball</label><button class="btn sm" id="pstar" aria-pressed="${!!path?.star}">${path?.star ? "★ Gets the ball (on)" : "☆ Gets the ball"}</button></div>
+      ${f.side === "O" ? `<div class="row"><label>Motion</label><button class="btn sm" id="pmotion" aria-pressed="${!!path?.motion}">${path?.motion ? "In motion (moves before the snap) ✓" : "Put in motion"}</button></div>` : ""}
       <div class="row"><label>Speed</label><input type="range" id="pspeed" min="2" max="9" step="0.5" value="${pathSpeed(path, sel, f.format)}"><span id="pspeed-v">${pathSpeed(path, sel, f.format)} yd/s</span></div>
       <div class="row"><label>Wait</label><input type="range" id="pdelay" min="0" max="3" step="0.1" value="${path?.delay || 0}"><span id="pdelay-v">${(path?.delay || 0).toFixed(1)} s</span></div>
       <div class="row"><button class="btn sm" id="pundo">Undo last point</button><button class="btn sm danger" id="pclear">Clear line</button></div>` : `<p class="hint">Tap a player on the field, or press on a player and drag to draw their line.</p>`}</div>`;
     if (f.side === "O") {
       const evs = (p.events || []).slice().sort((a, b) => a.t - b.t);
-      h += `<div class="box"><h3>The ball</h3><ul class="events">${evs.map((e, i) => `<li><span class="tag">${e.t.toFixed(1)}s</span> ${e.kind} to <b>${esc(e.to)}</b> <button class="btn sm danger" data-delev="${p.events.indexOf(e)}">✕</button></li>`).join("") || `<li class="hint">Snaps to the QB. Add a handoff, pitch or pass.</li>`}</ul>
+      h += `<div class="box"><h3>The ball</h3>
+        <div class="row"><label>Snap at</label><span class="tag">${(p.snap || 0).toFixed(1)}s</span><button class="btn sm primary" id="setsnap">Set snap here (${state.t.toFixed(1)}s)</button>${p.snap ? `<button class="btn sm" id="clearsnap">Snap at 0</button>` : ""}</div>
+        <p class="hint" style="margin:0 0 6px">With motion: drag the bar to when your motion man gets to the spot, then set the snap. Everyone else moves after the snap.</p>
+        <ul class="events">${evs.map((e, i) => `<li><span class="tag">${e.t.toFixed(1)}s</span> ${e.kind} to <b>${esc(e.to)}</b> <button class="btn sm danger" data-delev="${p.events.indexOf(e)}">✕</button></li>`).join("") || `<li class="hint">Snaps to the QB. Add a handoff, pitch or pass.</li>`}</ul>
         <div class="row"><select id="evkind"><option value="pass">Pass</option><option value="handoff">Handoff</option><option value="pitch">Pitch / lateral</option></select>
         <span>to</span><select id="evto">${f.spots.map((s) => `<option ${s.pos === sel ? "selected" : ""}>${esc(s.pos)}</option>`).join("")}</select></div>
         <div class="row"><button class="btn sm primary" id="evadd">Add at ${state.t.toFixed(1)}s</button><span class="hint">Drag the bar to the moment it happens first.</span></div></div>`;
@@ -772,6 +815,9 @@ $("#details").addEventListener("click", (e) => {
       save(); setT(state.t); renderDetails();
     }
   }
+  if (e.target.id === "setsnap") { p.snap = Math.round(state.t * 10) / 10; save(); setT(state.t); renderDetails(); }
+  if (e.target.id === "clearsnap") { p.snap = 0; save(); setT(state.t); renderDetails(); }
+  if (e.target.id === "pmotion" && state.selPos) { const path = (p.paths[state.selPos] ||= { pts: [] }); path.motion = !path.motion; save(); setT(state.t); renderDetails(); }
   if (e.target.id === "evadd") { (p.events ||= []).push({ t: Math.round(state.t * 10) / 10, kind: $("#evkind").value, to: $("#evto").value }); save(); setT(state.t); renderDetails(); }
   const de = e.target.closest("[data-delev]");
   if (de) { p.events.splice(+de.dataset.delev, 1); save(); setT(state.t); renderDetails(); }
