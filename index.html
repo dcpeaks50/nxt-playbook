@@ -321,17 +321,19 @@ function coachPlays() {
   const formations = [
     F("f7split", "Gun Split", "7", "O", [["C", 0, -0.7], ["LG", -2, -0.7], ["RG", 2, -0.7], ["QB", 0, -5], ["HB", -2.5, -5], ["FB", 2.5, -5], ["X", 14, -0.7]]),
     F("f7slot", "Gun Slot Right", "7", "O", [["C", 0, -0.7], ["LG", -2, -0.7], ["RG", 2, -0.7], ["QB", 0, -5], ["RB", 2.5, -5], ["X", -14, -0.7], ["Y", 8, -1.6]]),
+    F("f7twins", "Gun Split Twins", "7", "O", [["C", 0, -0.7], ["QB", 0, -5], ["HB", -2.5, -5], ["FB", 2.5, -5], ["X", 15, -0.7], ["Y", 9, -1.6], ["Z", -15, -0.7]]),
   ];
   const lineRight = { C: blk(1, 1), LG: blk(-0.5, 1), RG: blk(3.5, 1) };
   const lineLeft = { C: blk(-1, 1), LG: blk(-3.5, 1), RG: blk(0.5, 1) };
   const plays = [
-    P("p7rev", "Split X Reverse", "f7split", "run", {
-      C: blk(1, 1.2), LG: blk(-0.8, 1.2), RG: blk(3, 1.2), QB: r([[1, -4.6], [-2.5, -6.5]], { speed: 3 }),
+    P("p7rev", "Twins X Reverse", "f7twins", "run", {
+      C: blk(0.5, 1.2), QB: r([[1, -4.6], [3.5, -3]], { speed: 3 }),
+      Y: r([[9, 4], [7, 19]], { speed: 6.3 }), Z: r([[-15, 20]], { speed: 6.3 }),
       FB: r([[3.5, -1.5], [2, 3], [-4, 7]], { speed: 6.8, end: "block" }),
       HB: r([[-0.8, -4.2], [4, -4.4], [7.5, -4.4]], { speed: 6 }),
-      X: r([[11, -3.5], [6, -6], [0, -6.5], [-8, -5.5], [-14, -1], [-16, 5], [-16, 18]], { speed: 7, delay: 0.6, curve: true, star: true }),
-    }, [{ t: 0.55, kind: "handoff", to: "HB" }, { t: 1.7, kind: "handoff", to: "X" }],
-      "FB gets upfield fast to block. HB takes the handoff running right and gives it back to X coming behind him. X takes it around the left side for the TD.", { goal: 14 }),
+      X: r([[12, -3.5], [6, -6], [0, -6.5], [-8, -5.5], [-12, -1], [-13, 5], [-12.5, 18]], { speed: 7, delay: 0.7, curve: true, star: true }),
+    }, [{ t: 0.55, kind: "handoff", to: "HB" }, { t: 1.95, kind: "handoff", to: "X" }],
+      "Y runs a seam to pull the safety; Z goes deep to take the corner. FB gets upfield fast to block. HB takes the handoff running right and gives it back to X coming behind him. X takes it around the left side for the TD.", { goal: 14 }),
     P("p7spr", "Split Right", "f7split", "run", {
       ...lineRight, QB: r([[0.6, -4.8]], { speed: 3 }),
       FB: r([[1.2, -4.4], [5, -4], [10, -1], [12, 3], [12, 16]], { speed: 6.3, curve: true, star: true }),
@@ -387,6 +389,15 @@ if (book.version < 4) {
   const trick = book.packages.find((k) => k.id === "pk_trick");
   if (trick && !trick.playIds.includes("p7ladder")) trick.playIds.push("p7ladder");
   book.version = 4;
+}
+// v5: the reverse moves to Gun Split Twins (no linemen; seam + deep clear-outs).
+if (book.version < 5) {
+  const cp = coachPlays();
+  const tw = cp.formations.find((f) => f.id === "f7twins");
+  if (!book.formations.some((x) => x.id === tw.id)) book.formations.push(tw);
+  const rev = cp.plays.find((p) => p.id === "p7rev"), i = book.plays.findIndex((q) => q.id === "p7rev");
+  if (i >= 0) book.plays[i] = rev; else book.plays.push(rev);
+  book.version = 5;
 }
 const prefs = store.get(PREFS, {});
 const state = {
