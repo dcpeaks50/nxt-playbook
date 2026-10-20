@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NXT Playbook</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
+  --accent:#22c55e; --accent-ink:#06210f; --gold:#facc15; --danger:#ef4444;
+  --field:#2e7d32; --field2:#2a7330; --chalk:rgba(255,255,255,.85);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg:#f2f4f7; --panel:#ffffff; --panel2:#eef1f5; --line:#d9dee7; --ink:#10151d; --muted:#5b6575; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:900;letter-spacing:.06em;font-size:20px}
+.brand b{background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:2px 8px}
+.brand span{font-weight:600;font-size:13px;color:var(--muted);letter-spacing:.02em}
+.seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:4px 9px;font-size:12px;border-radius:8px}
+
+.app{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){.app{grid-template-columns:1fr;padding:12px}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
+.panel + .panel{margin-top:14px}
+.panel h2{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.list{display:flex;flex-direction:column;gap:6px}
+.item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:8px 10px}
+.item:hover{border-color:var(--muted)}
+.item[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.item .name{flex:1;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--line);color:var(--ink)}
+.tag.O{background:#1d4ed8;color:#fff}.tag.D{background:#b91c1c;color:#fff}
+.tag.run{background:#c2410c;color:#fff}.tag.pass{background:#0e7490;color:#fff}
+.tag.zone{background:#7c3aed;color:#fff}.tag.man{background:#be185d;color:#fff}.tag.blitz{background:#a16207;color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:650}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .x{margin-left:6px;opacity:.6}
+.empty{color:var(--muted);font-size:13px;padding:6px 2px}
+.order{display:flex;flex-direction:column}
+.order button{border:0;background:none;padding:0 4px;line-height:1;color:var(--muted);font-size:12px}
+
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.titlebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.titlebar h1{margin:0;font-size:20px;flex:1;min-width:180px}
+.titlebar input.title{flex:1;min-width:180px;font-size:18px;font-weight:800;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.fieldwrap{background:#1f5d24;display:flex;justify-content:center}
+svg#field{display:block;width:100%;height:auto;max-height:72vh;touch-action:none;user-select:none}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--line)}
+.play{width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:18px;font-weight:900}
+.controls input[type=range]{flex:1;min-width:160px;accent-color:var(--accent);height:28px}
+.time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:86px;text-align:right}
+.details{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:14px;border-top:1px solid var(--line)}
+.box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.box h3{margin:0 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0}
+.row label{font-size:13px;color:var(--muted);min-width:64px}
+select,input[type=text],input[type=number],textarea{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+textarea{width:100%;min-height:64px;resize:vertical}
+.lineup{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.lineup label{display:flex;flex-direction:column;font-size:12px;font-weight:800;color:var(--muted);gap:3px}
+.hint{font-size:13px;color:var(--muted);margin:4px 0 0}
+.editbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:color-mix(in srgb,var(--gold) 14%,var(--panel));border-bottom:1px solid var(--line);font-size:14px}
+.events li{display:flex;align-items:center;gap:8px;margin:4px 0}
+.events{list-style:none;margin:0;padding:0}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0;width:min(560px,94vw)}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+.dlg-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dlg-h h2{margin:0;font-size:18px}
+.dlg-b{padding:14px 16px;max-height:65vh;overflow:auto}
+.roster-row{display:grid;grid-template-columns:76px 1fr auto;gap:8px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>NXT</b><span>Playbook</span></div>
+  <div class="seg" id="fmt" role="group" aria-label="Format">
+    <button data-v="5">5v5</button><button data-v="7">7v7</button><button data-v="11">11v11</button>
+  </div>
+  <div class="seg" id="side" role="group" aria-label="Side">
+    <button data-v="all">All</button><button data-v="O">Offense</button><button data-v="D">Defense</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn" id="btn-roster">Roster</button>
+  <button class="btn" id="btn-export">Export</button>
+  <button class="btn" id="btn-import">Import</button>
+  <input type="file" id="file" accept="application/json,.json" hidden>
+</header>
+
+<div class="app">
+  <aside>
+    <section class="panel">
+      <h2>Formations <span><button class="btn sm" id="btn-dupform" title="Copy the selected formation">Copy</button></span></h2>
+      <div class="list" id="formations"></div>
+    </section>
+    <section class="panel">
+      <h2>Packages <button class="btn sm" id="btn-newpkg">+ New</button></h2>
+      <div class="chips" id="packages"></div>
+      <h2 style="margin-top:14px">Type</h2>
+      <div class="chips" id="types"></div>
+    </section>
+    <section class="panel">
+      <h2>Plays <button class="btn sm primary" id="btn-newplay">+ New play</button></h2>
+      <div class="list" id="plays"></div>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <div class="titlebar">
+      <h1 id="title">Pick a play</h1>
+      <input class="title" id="title-in" hidden aria-label="Play name">
+      <span id="title-tags"></span>
+      <div class="seg" id="labels" role="group" aria-label="Labels">
+        <button data-v="pos">Pos</button><button data-v="num">#</button><button data-v="name">Name</button>
+      </div>
+      <button class="btn" id="btn-ghost" aria-pressed="true">Opponent</button>
+      <button class="btn" id="btn-edit">Edit</button>
+    </div>
+    <div class="editbar" id="editbar" hidden>
+      <div class="seg" id="editmode" role="group" aria-label="Edit">
+        <button data-v="play">Routes</button><button data-v="formation">Formation</button>
+      </div>
+      <span id="edit-hint"></span>
+      <span class="spacer"></span>
+      <button class="btn sm" id="btn-dupplay">Duplicate play</button>
+      <button class="btn sm danger" id="btn-delplay">Delete play</button>
+      <button class="btn sm danger" id="btn-delform">Delete formation</button>
+      <button class="btn sm primary" id="btn-done">Done</button>
+    </div>
+    <div class="fieldwrap"><svg id="field" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Football field with the play"></svg></div>
+    <div class="controls">
+      <button class="play" id="btn-play" aria-label="Play">▶</button>
+      <button class="btn" id="btn-rate">1×</button>
+      <button class="btn" id="btn-restart" aria-label="Back to the snap">⟲</button>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Play progress">
+      <span class="time" id="time">0.0s / 0.0s</span>
+    </div>
+    <div class="details" id="details"></div>
+  </main>
+</div>
+
+<dialog id="roster">
+  <div class="dlg-h"><h2>Roster</h2><button class="btn" id="roster-close">Done</button></div>
+  <div class="dlg-b">
+    <p class="hint" style="margin:0 0 10px">Add your players here, then pick who plays each spot under <b>Personnel</b> below the field.</p>
+    <div id="roster-rows"></div>
+    <button class="btn primary" id="roster-add">+ Add player</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const KEY = "nxt-playbook-v1", PREFS = "nxt-prefs-v1";
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: keep working in memory */ } },
+};
+const uid = () => Math.random().toString(36).slice(2, 9);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const WIDTH = { 5: 30, 7: 40, 11: 53.3 };
+const TOP = 24, BOTTOM = -11; // yards shown past / behind the line of scrimmage
+const sy = (y) => TOP - y;
+const TYPES = { O: ["run", "pass"], D: ["zone", "man", "blitz"] };
+
+// ---------------------------------------------------------------- sample playbook
+function samplePlaybook() {
+  const F = (id, name, format, side, spots) => ({ id, name, format, side, spots: spots.map(([pos, x, y]) => ({ pos, x, y })), lineup: {} });
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const OL = [["LT", -4, -0.7], ["LG", -2, -0.7], ["C", 0, -0.7], ["RG", 2, -0.7], ["RT", 4, -0.7]];
+  const fire = (dy = 1.6, dx = {}) => Object.fromEntries(OL.map(([p, x, y]) => [p, r([[x + (dx[p] || 0), y + dy]])]));
+  const pro = () => Object.fromEntries(OL.map(([p, x, y]) => [p, r([[x * 1.15, y - 1.2]])]));
+  const P = (id, name, formationId, type, paths, events = [], notes = "") => ({ id, name, formationId, type, paths, events, notes });
+
+  const formations = [
+    F("f11i", "I-Form", "11", "O", [...OL, ["TE", 6, -0.7], ["X", -17, -0.7], ["Z", 15, -1.6], ["QB", 0, -1.6], ["FB", 0, -4.5], ["TB", 0, -7]]),
+    F("f11t", "Shotgun Trips Right", "11", "O", [...OL, ["Y", 7.5, -1.6], ["H", 11, -1.6], ["Z", 16, -0.7], ["X", -17, -0.7], ["QB", 0, -5], ["RB", -2, -5]]),
+    F("f11g", "Goal Line", "11", "O", [...OL, ["TE", 6, -0.7], ["Y", -6, -0.7], ["H", 7.5, -1.6], ["QB", 0, -1.6], ["FB", 0, -4], ["TB", 0, -6.5]]),
+    F("f11d", "4-3", "11", "D", [["LE", -5, 1], ["DT", -1.6, 1], ["NT", 1.6, 1], ["RE", 5, 1], ["WLB", -4, 4.5], ["MLB", 0, 4.5], ["SLB", 4, 4.5], ["LCB", -17, 6], ["RCB", 15, 6], ["FS", -7, 12], ["SS", 7, 12]]),
+    F("f7s", "Spread", "7", "O", [["C", 0, -0.7], ["QB", 0, -5], ["RB", -2, -5], ["X", -16, -0.7], ["H", -9, -1.6], ["Y", 9, -1.6], ["Z", 16, -0.7]]),
+    F("f7b", "Bunch Right", "7", "O", [["C", 0, -0.7], ["QB", 0, -5], ["RB", -2, -5], ["X", -16, -0.7], ["H", 10, -1.6], ["Y", 11.5, -0.7], ["Z", 13, -1.6]]),
+    F("f7d", "Base", "7", "D", [["LCB", -16, 5], ["RCB", 16, 5], ["WLB", -6, 5], ["MLB", 0, 5], ["SLB", 6, 5], ["FS", -8, 12], ["SS", 8, 12]]),
+    F("f5s", "Spread", "5", "O", [["C", 0, -0.7], ["QB", 0, -5], ["Y", -2, -5], ["X", -12, -0.7], ["Z", 12, -0.7]]),
+    F("f5t", "Trips Right", "5", "O", [["C", 0, -0.7], ["QB", 0, -5], ["Y", 5, -1.6], ["X", 8.5, -1.6], ["Z", 12, -0.7]]),
+    F("f5d", "Base", "5", "D", [["R", 0, 7], ["LCB", -12, 5], ["RCB", 12, 5], ["LB", 0, 4], ["S", 0, 11]]),
+  ];
+
+  const plays = [
+    // ---------- 11v11 offense
+    P("p11dive", "Dive Right", "f11i", "run", {
+      ...fire(1.6), QB: r([[0.6, -3]], { speed: 3 }), TB: r([[1, -3.6], [2.2, -0.6], [2.2, 6], [3, 14]]), FB: r([[2, -1.6], [2.6, 0.8]], { end: "block" }),
+      TE: r([[6.5, 1]], { end: "block" }), X: r([[-17, 9]]), Z: r([[15, 9]]),
+    }, [{ t: 0.65, kind: "handoff", to: "TB" }], "Quick hit through the right A/B gap. FB leads and takes the linebacker."),
+    P("p11toss", "Toss Sweep Left", "f11i", "run", {
+      ...fire(1.4, { LT: -1.5, LG: -1 }), QB: r([[-0.6, -2.4]], { speed: 3 }), TB: r([[-2.5, -6.8], [-9, -6], [-14, -2.5], [-15.5, 2], [-15.5, 14]], { speed: 6.6 }),
+      FB: r([[-6, -3.6], [-11, -1], [-13.5, 1.5]], { end: "block" }), X: r([[-14.5, 2.5]], { end: "block" }), TE: r([[7, 1.2]], { end: "block" }), Z: r([[15, 9]]),
+    }, [{ t: 0.45, kind: "pitch", to: "TB" }], "Pitch it wide. FB and X seal the edge; TB gets outside and turns up."),
+    P("p11boot", "PA Boot Right", "f11i", "pass", {
+      ...pro(), QB: r([[0.8, -3.4], [5, -5], [9, -4.4]], { speed: 4.8 }), TB: r([[-0.5, -3.4], [-3, 0]]), FB: r([[3, -3], [7, -1.2]], { end: "block" }),
+      TE: r([[6, 1.2], [6.5, 3.5], [13, 5.5]]), Z: r([[15, 9], [9, 17]]), X: r([[-17, 9], [-3, 13]]),
+    }, [{ t: 2.5, kind: "pass", to: "TE" }], "Fake the dive, QB rolls right. Read TE in the flat, then Z on the post."),
+    P("p11bubble", "Bubble Screen", "f11t", "pass", {
+      ...pro(), QB: r([[0, -5.6]], { speed: 3 }), Y: r([[9, -3], [12.5, -3.2], [14.5, 1.5], [14.5, 12]], { speed: 6.6 }),
+      H: r([[11.5, 1.8]], { end: "block" }), Z: r([[16, 2.6]], { end: "block" }), X: r([[-17, 16]]), RB: r([[-1.2, -3]], { end: "block" }),
+    }, [{ t: 0.8, kind: "pass", to: "Y" }], "Throw it fast. H and Z block the two defenders in front of them."),
+    P("p11verts", "Four Verts", "f11t", "pass", {
+      ...pro(), QB: r([[0, -7.2]], { speed: 3.5 }), X: r([[-17, 21]]), Z: r([[16, 21]]), H: r([[11, 4], [9, 21]]), Y: r([[7.5, 4], [4, 21]]),
+      RB: r([[-2.5, -3.5], [-6, 0], [-7, 3]]),
+    }, [{ t: 2.7, kind: "pass", to: "H" }], "Everyone runs deep. Throw to the seam that's open; RB is the check-down."),
+    P("p11hbpass", "Halfback Pass", "f11i", "pass", {
+      ...pro(), QB: r([[0.8, -2.4], [3, -1.5]], { speed: 3.5 }), TB: r([[2, -6.8], [7, -6.2], [9.5, -5.5]], { speed: 5.5 }), FB: r([[5, -3.4], [9, -1.5]], { end: "block" }),
+      X: r([[-17, 7], [-8, 18]]), TE: r([[6.5, 1]], { end: "block" }), Z: r([[15, 6], [17, 3]]),
+    }, [{ t: 0.45, kind: "pitch", to: "TB" }, { t: 2.6, kind: "pass", to: "X" }], "Looks like toss right. TB pulls up and throws to X on the deep post."),
+    P("p11xp", "Power Right (XP)", "f11g", "run", {
+      ...fire(1.4), QB: r([[0.6, -2.8]], { speed: 3 }), TB: r([[1.2, -4], [3, -1], [3, 4]], { speed: 6 }), FB: r([[3, -2], [3.5, 0.6]], { end: "block" }),
+      H: r([[5, 0.6]], { end: "block" }), TE: r([[6.5, 1]], { end: "block" }), Y: r([[-6, 1]], { end: "block" }),
+    }, [{ t: 0.6, kind: "handoff", to: "TB" }], "Extra point run. Everyone blocks down; TB follows the FB into the end zone."),
+    // ---------- 11v11 defense
+    P("p11c2", "Cover 2", "f11d", "zone", {
+      LE: r([[-6, -3], [-2, -6]]), DT: r([[-1.6, -2]]), NT: r([[1.6, -2]]), RE: r([[6, -3], [2, -6]]),
+      WLB: r([[-7, 9]]), MLB: r([[0, 12]]), SLB: r([[7, 9]]), LCB: r([[-17, 5], [-15, 7]]), RCB: r([[15, 5], [13, 7]]), FS: r([[-12, 17]]), SS: r([[12, 17]]),
+    }, [], "Corners sit in the flats. Safeties split the deep field in half."),
+    P("p11c3", "Cover 3", "f11d", "zone", {
+      LE: r([[-6, -3], [-2, -6]]), DT: r([[-1.6, -2]]), NT: r([[1.6, -2]]), RE: r([[6, -3], [2, -6]]),
+      WLB: r([[-8, 9]]), MLB: r([[0, 9.5]]), SLB: r([[5, 8.5]]), LCB: r([[-17, 18]], { speed: 4.8 }), RCB: r([[15, 18]], { speed: 4.8 }), FS: r([[0, 18]]), SS: r([[8, 8], [12, 9]]),
+    }, [], "Three deep (both corners + free safety), four underneath."),
+    P("p11blitz", "Cover 0 Blitz", "f11d", "blitz", {
+      LE: r([[-6, -3], [-2, -6]]), DT: r([[-1.6, -2]]), NT: r([[1.6, -2]]), RE: r([[6, -3], [2, -6]]),
+      WLB: r([[-3, 1], [-2, -5]]), MLB: r([[0, 1.5], [0.5, -5]]), SLB: r([[3, 1], [2, -5]]), LCB: r([[-17, 3], [-17, 14]]), RCB: r([[15, 4], [15, 14]]),
+      FS: r([[6, 4], [10, 9]]), SS: r([[-2, 6], [-6, 4]]),
+    }, [], "Everybody comes. Corners and safeties play man with no deep help."),
+    // ---------- 7v7 offense
+    P("p7slant", "Slant-Flat", "f7s", "pass", {
+      C: r([[0, 1]], { end: "block" }), QB: r([[0, -6.5]], { speed: 3 }), RB: r([[-1.2, -3.2]], { end: "block" }),
+      Z: r([[16, 2], [11, 6], [6, 9]]), Y: r([[11, 1], [17, 3]]), X: r([[-16, 2], [-11, 6], [-6, 9]]), H: r([[-11, 1], [-17, 3]]),
+    }, [{ t: 1.6, kind: "pass", to: "Z" }], "Read the flat defender: if he jumps the flat, throw the slant behind him."),
+    P("p7verts", "Four Verts", "f7s", "pass", {
+      C: r([[0, 4], [0, 6]]), QB: r([[0, -7]], { speed: 3.5 }), RB: r([[-4, -3], [-8, 1]]),
+      X: r([[-16, 20]]), H: r([[-9, 4], [-6, 20]]), Y: r([[9, 4], [6, 20]]), Z: r([[16, 20]]),
+    }, [{ t: 2.5, kind: "pass", to: "Y" }], "All four go deep; hit the open seam."),
+    P("p7jet", "Jet Sweep", "f7s", "run", {
+      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.3, -4.3]], { speed: 3 }), H: r([[-6, -2.3], [0, -3.6], [8, -2.5], [15, 2], [15, 14]], { speed: 7 }),
+      RB: r([[-3.5, -3], [-5, 0]]), Y: r([[10, 2]], { end: "block" }), Z: r([[17, 3.5]], { end: "block" }), X: r([[-16, 9]]),
+    }, [{ t: 1.35, kind: "handoff", to: "H" }], "H comes in full speed; QB hands it off on the run. Y and Z block the edge."),
+    P("p7smash", "Bunch Smash", "f7b", "pass", {
+      C: r([[0, 1]], { end: "block" }), QB: r([[0, -6.5]], { speed: 3 }), RB: r([[-2.5, -3], [-6, 0]]),
+      Y: r([[11.5, 6], [17, 12]]), Z: r([[13, 5], [13, 4]]), H: r([[13.5, -1], [18, 0]]), X: r([[-16, 10], [-6, 10]]),
+    }, [{ t: 2.2, kind: "pass", to: "Y" }], "Corner over the top, hitch underneath, flat to the sideline. Great vs zone."),
+    P("p7rev", "Reverse", "f7s", "run", {
+      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.2, -4.2]], { speed: 3 }), RB: r([[1, -4.6], [5, -4]], { speed: 5 }),
+      Y: r([[7, -3], [4, -4], [-6, -3], [-14, 2], [-14, 14]], { speed: 7, delay: 0.7 }), X: r([[-16, 3]], { end: "block" }), H: r([[-9, 2]], { end: "block" }), Z: r([[16, 9]]),
+    }, [{ t: 0.45, kind: "handoff", to: "RB" }, { t: 1.4, kind: "handoff", to: "Y" }], "RB starts right and hands to Y coming back the other way."),
+    // ---------- 7v7 defense
+    P("p7c2", "Cover 2", "f7d", "zone", {
+      LCB: r([[-16, 4], [-14, 6]]), RCB: r([[16, 4], [14, 6]]), WLB: r([[-7, 9]]), MLB: r([[0, 11]]), SLB: r([[7, 9]]), FS: r([[-11, 17]]), SS: r([[11, 17]]),
+    }, [], "Corners take the flats, safeties split deep."),
+    P("p7c1", "Cover 1 Man", "f7d", "man", {
+      LCB: r([[-16, 3], [-16, 15]]), RCB: r([[16, 3], [16, 15]]), WLB: r([[-9, 3], [-7, 10]]), SLB: r([[9, 3], [7, 10]]), MLB: r([[-1, 2], [-2, -2]]), FS: r([[0, 18]]), SS: r([[0, 7], [0, 1], [0, -3]]),
+    }, [], "Man on every receiver, free safety deep middle, SS rushes."),
+    // ---------- 5v5 offense
+    P("p5mesh", "Mesh", "f5s", "pass", {
+      C: r([[0, 5], [0, 7]]), QB: r([[0, -6.5]], { speed: 3 }), X: r([[-12, 3], [8, 4]]), Z: r([[12, 2], [-8, 3]]), Y: r([[-6, -3], [-10, 0]]),
+    }, [{ t: 2.1, kind: "pass", to: "Z" }], "X and Z cross shallow and rub; great vs man."),
+    P("p5flood", "Flood Right", "f5t", "pass", {
+      C: r([[0, 5]]), QB: r([[1.5, -6], [3.5, -5.5]], { speed: 3.5 }), Z: r([[12, 18]]), X: r([[8.5, 6], [13.5, 11]]), Y: r([[5, 1], [13, 1.2]]),
+    }, [{ t: 2.3, kind: "pass", to: "X" }], "Three levels to one side: go, corner, flat. Great vs zone."),
+    P("p5sweep", "Y Sweep", "f5s", "run", {
+      C: r([[0, 1.5]], { end: "block" }), QB: r([[0, -5.6]], { speed: 3 }), Y: r([[-0.8, -4.2], [8, -4], [12, 0], [12, 12]], { speed: 6.2, delay: 0.25 }),
+      X: r([[-12, 8]]), Z: r([[12.5, 2.5]], { end: "block" }),
+    }, [{ t: 0.5, kind: "handoff", to: "Y" }], "Quick handoff, get to the edge, Z blocks the corner."),
+    P("p5hook", "Hook & Ladder", "f5s", "pass", {
+      C: r([[0, 3]]), QB: r([[0, -6.5]], { speed: 3 }), Z: r([[12, 7.5], [11.5, 6.5]]), X: r([[-12, 4], [9, 7.5], [13.5, 9.5], [14, 18]], { speed: 6.5 }), Y: r([[-5, -2], [-9, 1]]),
+    }, [{ t: 1.7, kind: "pass", to: "Z" }, { t: 3.6, kind: "pitch", to: "X" }], "Z catches the hook and pitches to X running past him."),
+    P("p5xp", "Quick Slant (XP)", "f5s", "pass", {
+      C: r([[0, 3]]), QB: r([[0, -5.8]], { speed: 3 }), X: r([[-12, 1.5], [-8, 4]]), Z: r([[12, 1.5], [8, 4]]), Y: r([[-5, -3], [-9, -1]]),
+    }, [{ t: 0.95, kind: "pass", to: "X" }], "Extra point from the 5. Quick slant, ball out fast."),
+    // ---------- 5v5 defense
+    P("p5c1", "Cover 1 Man", "f5d", "man", {
+      R: r([[0, -4]], { speed: 6 }), LCB: r([[-12, 3], [-12, 12]]), RCB: r([[12, 3], [12, 12]]), LB: r([[-1.5, 2], [-3, 4]]), S: r([[0, 17]]),
+    }, [], "Rusher goes; corners and LB play man; safety deep middle."),
+    P("p5z", "Zone (2 Deep)", "f5d", "zone", {
+      R: r([[0, -4]], { speed: 6 }), LCB: r([[-11, 4], [-9, 7]]), RCB: r([[11, 4], [9, 7]]), LB: r([[0, 7]]), S: r([[6, 16]]),
+    }, [], "Corners sit underneath, LB takes the middle, safety rotates deep."),
+  ];
+  const packages = [
+    { id: "pk_open", name: "Opening script", playIds: ["p11dive", "p11bubble", "p11boot", "p7slant", "p7jet", "p5mesh", "p5sweep"] },
+    { id: "pk_xp", name: "Extra point", playIds: ["p11xp", "p5xp", "p7slant"] },
+    { id: "pk_man", name: "vs Man", playIds: ["p11boot", "p5mesh", "p7slant"] },
+    { id: "pk_zone", name: "vs Zone", playIds: ["p11verts", "p7smash", "p7verts", "p5flood"] },
+    { id: "pk_trick", name: "Trick plays", playIds: ["p11hbpass", "p7rev", "p5hook"] },
+  ];
+  return { version: 1, roster: [], formations, plays, packages };
+}
+
+// ---------------------------------------------------------------- state
+let book = store.get(KEY, null);
+if (!book || !Array.isArray(book.plays)) book = samplePlaybook();
+const prefs = store.get(PREFS, {});
+const state = {
+  format: prefs.format || "11", side: prefs.side || "all", formationId: null, type: "all", pkg: "all",
+  playId: null, labels: prefs.labels || "pos", ghost: prefs.ghost !== false,
+  mode: "view", editMode: "play", selPos: null, t: 0, playing: false, rate: 1,
+};
+const save = () => store.set(KEY, book);
+const savePrefs = () => store.set(PREFS, { format: state.format, side: state.side, labels: state.labels, ghost: state.ghost });
+
+const formationById = (id) => book.formations.find((f) => f.id === id);
+const currentPlay = () => book.plays.find((p) => p.id === state.playId) || null;
+const currentFormation = () => { const p = currentPlay(); return p ? formationById(p.formationId) : formationById(state.formationId) || null; };
+
+// ---------------------------------------------------------------- motion
+function role(pos, format) {
+  if (/^(LT|LG|RG|RT)$/.test(pos) || (pos === "C" && format === "11")) return "line";
+  if (/^(LE|RE|DE|DT|NT)$/.test(pos)) return "dline";
+  if (pos === "QB") return "qb";
+  if (/^(RB|TB|FB)$/.test(pos)) return "back";
+  if (pos === "R" || /LB$/.test(pos)) return "lb";
+  if (/(CB|S)$/.test(pos)) return "db";
+  if (pos === "TE") return "te";
+  return "rec";
+}
+const SPEED = { line: 3.2, dline: 4.5, qb: 4.5, back: 6, rec: 6.3, te: 5.5, lb: 5.5, db: 6 };
+const COLOR = { line: "#cbd5e1", dline: "#fecaca", qb: "#f8fafc", back: "#fb923c", rec: "#facc15", te: "#fde68a", lb: "#fca5a5", db: "#f9a8d4" };
+const pathSpeed = (path, pos, fmt) => path?.speed || SPEED[role(pos, fmt)];
+const pathEnd = (path, pos, fmt) => path?.end || (role(pos, fmt) === "line" ? "block" : "arrow");
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+function posAt(spot, path, fmt, t) {
+  const pts = path?.pts || [];
+  if (!pts.length) return { x: spot.x, y: spot.y };
+  let tt = t - (path.delay || 0);
+  if (tt <= 0) return { x: spot.x, y: spot.y };
+  const v = pathSpeed(path, spot.pos, fmt);
+  let a = { x: spot.x, y: spot.y };
+  for (const [x, y] of pts) {
+    const b = { x, y }, d = dist(a, b), dt = d / v;
+    if (tt <= dt) return { x: a.x + (b.x - a.x) * (tt / dt || 0), y: a.y + (b.y - a.y) * (tt / dt || 0) };
+    tt -= dt; a = b;
+  }
+  return a;
+}
+function pathDuration(spot, path, fmt) {
+  const pts = path?.pts || [];
+  if (!pts.length) return 0;
+  let a = spot, L = 0;
+  for (const [x, y] of pts) { L += dist(a, { x, y }); a = { x, y }; }
+  return (path.delay || 0) + L / pathSpeed(path, spot.pos, fmt);
+}
+function playerPos(play, f, pos, t) {
+  const spot = f.spots.find((s) => s.pos === pos);
+  return spot ? posAt(spot, play?.paths?.[pos], f.format, t) : { x: 0, y: 0 };
+}
+const FLIGHT = { pass: 13, pitch: 9, snap: 12 };
+function flightTime(play, f, fromPos, toPos, kind, t0, holderPt) {
+  let fl = 0.4;
+  for (let i = 0; i < 4; i++) fl = Math.max(kind === "snap" ? 0.15 : 0.3, dist(holderPt, playerPos(play, f, toPos, t0 + fl)) / FLIGHT[kind]);
+  return fl;
+}
+/** Ball position at time t: snapped to the QB, then handed off / pitched / thrown per the play's events. */
+function ballAt(play, f, t) {
+  const has = (p) => f.spots.some((s) => s.pos === p);
+  let holder = has("C") ? "C" : f.spots[0]?.pos;
+  if (!holder || f.side !== "O") return null;
+  const evs = [];
+  if (has("QB") && holder !== "QB") evs.push({ t: 0, kind: "snap", to: "QB" });
+  evs.push(...(play?.events || []).filter((e) => has(e.to)).slice().sort((a, b) => a.t - b.t));
+  for (const e of evs) {
+    if (t < e.t) break;
+    if (e.kind === "handoff") { holder = e.to; continue; }
+    const from = playerPos(play, f, holder, e.t);
+    const fl = flightTime(play, f, holder, e.to, e.kind, e.t, from);
+    if (t < e.t + fl) {
+      const to = playerPos(play, f, e.to, e.t + fl), k = (t - e.t) / fl;
+      return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k, air: Math.sin(Math.PI * k) * (e.kind === "pass" ? 1.6 : 0.5), flying: true };
+    }
+    holder = e.to;
+  }
+  const p = playerPos(play, f, holder, t);
+  return { x: p.x + 0.55, y: p.y + 0.2, air: 0, holder };
+}
+function playDuration(play, f) {
+  if (!play || !f) return 0;
+  let d = 0;
+  for (const s of f.spots) d = Math.max(d, pathDuration(s, play.paths?.[s.pos], f.format));
+  for (const e of play.events || []) d = Math.max(d, e.t + 1);
+  return Math.min(12, Math.max(3, d + 0.6));
+}
+
+// ---------------------------------------------------------------- drawing
+const svg = $("#field");
+function ghostFormation(f) {
+  if (!state.ghost || !f) return null;
+  const other = f.side === "O" ? "D" : "O";
+  return book.formations.find((g) => g.format === f.format && g.side === other) || null;
+}
+function nameFor(f, pos) {
+  const id = f.lineup?.[pos];
+  const kid = id && book.roster.find((k) => k.id === id);
+  if (!kid) return pos;
+  if (state.labels === "num") return kid.number ? String(kid.number) : pos;
+  if (state.labels === "name") return (kid.name || pos).split(" ")[0].slice(0, 8);
+  return pos;
+}
+function fieldMarkup(fmt) {
+  const W = WIDTH[fmt], half = W / 2;
+  let s = `<rect x="${-half - 3}" y="0" width="${W + 6}" height="${TOP - BOTTOM}" fill="#256b2a"/>`;
+  for (let y = Math.floor(BOTTOM / 5) * 5; y < TOP; y += 5) {
+    const i = Math.round(y / 5);
+    s += `<rect x="${-half}" y="${sy(y + 5)}" width="${W}" height="5" fill="${i % 2 ? "var(--field)" : "var(--field2)"}"/>`;
+  }
+  s += `<rect x="${-half}" y="0" width="${W}" height="${TOP - BOTTOM}" fill="none" stroke="var(--chalk)" stroke-width="0.25"/>`;
+  for (let y = Math.ceil(BOTTOM); y <= TOP; y++) {
+    if (y % 5 === 0) s += `<line x1="${-half}" x2="${half}" y1="${sy(y)}" y2="${sy(y)}" stroke="var(--chalk)" stroke-width="${y % 10 === 0 ? 0.2 : 0.14}"/>`;
+    else {
+      const hx = fmt === "11" ? W * 0.17 : W * 0.15;
+      for (const x of [-half + 0.3, -hx, hx, half - 1.3]) s += `<line x1="${x}" x2="${x + 1}" y1="${sy(y)}" y2="${sy(y)}" stroke="var(--chalk)" stroke-width="0.12"/>`;
+    }
+  }
+  s += `<line x1="${-half}" x2="${half}" y1="${sy(0)}" y2="${sy(0)}" stroke="#60a5fa" stroke-width="0.32"/>`;
+  if (fmt === "11") s += `<line x1="${-half}" x2="${half}" y1="${sy(10)}" y2="${sy(10)}" stroke="#facc15" stroke-width="0.28" opacity=".9"/>`;
+  return s;
+}
+function arrowHead(a, b, color) {
+  const ang = Math.atan2(sy(b.y) - sy(a.y), b.x - a.x), L = 0.9, w = 0.5;
+  const p = (dx, dy) => `${b.x + dx * Math.cos(ang) - dy * Math.sin(ang)},${sy(b.y) + dx * Math.sin(ang) + dy * Math.cos(ang)}`;
+  return `<polygon points="${p(0, 0)} ${p(-L, w)} ${p(-L, -w)}" fill="${color}"/>`;
+}
+function blockEnd(a, b, color) {
+  const ang = Math.atan2(sy(b.y) - sy(a.y), b.x - a.x) + Math.PI / 2, w = 0.7;
+  return `<line x1="${b.x - Math.cos(ang) * w}" y1="${sy(b.y) - Math.sin(ang) * w}" x2="${b.x + Math.cos(ang) * w}" y2="${sy(b.y) + Math.sin(ang) * w}" stroke="${color}" stroke-width="0.32" stroke-linecap="round"/>`;
+}
+function draw() {
+  const f = currentFormation(), play = currentPlay();
+  const fmt = f?.format || state.format, W = WIDTH[fmt];
+  // Phones: zoom to the part of the field the play uses so the players aren't tiny (not while editing).
+  let x0 = -W / 2 - 1.5, x1 = W / 2 + 1.5;
+  if (f && window.innerWidth < 700 && state.mode !== "edit") {
+    const xs = [...f.spots.map((s) => s.x), ...Object.values(play?.paths || {}).flatMap((p) => (p.pts || []).map(([x]) => x)), ...(ghostFormation(f)?.spots || []).map((s) => s.x)];
+    x0 = Math.max(x0, Math.min(...xs) - 3); x1 = Math.min(x1, Math.max(...xs) + 3);
+    const minW = 26; if (x1 - x0 < minW) { const c = (x0 + x1) / 2; x0 = c - minW / 2; x1 = c + minW / 2; }
+  }
+  svg.setAttribute("viewBox", `${x0} 0 ${x1 - x0} ${TOP - BOTTOM}`);
+  let s = fieldMarkup(fmt);
+  if (!f) { svg.innerHTML = s + `<text x="0" y="${sy(6)}" text-anchor="middle" font-size="2" fill="#fff" opacity=".8">Pick a formation or a play</text>`; return; }
+  const t = state.t;
+  const editing = state.mode === "edit";
+  const g = ghostFormation(f);
+  if (g) for (const sp of g.spots) {
+    s += `<g opacity=".5"><circle cx="${sp.x}" cy="${sy(sp.y)}" r="0.85" fill="none" stroke="#fff" stroke-width="0.16" stroke-dasharray="0.3 0.25"/><text x="${sp.x}" y="${sy(sp.y) + 0.32}" font-size="0.75" text-anchor="middle" fill="#fff" font-weight="700">${esc(sp.pos)}</text></g>`;
+  }
+  // routes
+  for (const sp of f.spots) {
+    const path = play?.paths?.[sp.pos];
+    if (!path?.pts?.length) continue;
+    const pts = [{ x: sp.x, y: sp.y }, ...path.pts.map(([x, y]) => ({ x, y }))];
+    const col = COLOR[role(sp.pos, f.format)];
+    const sel = editing && state.selPos === sp.pos;
+    s += `<polyline points="${pts.map((p) => `${p.x},${sy(p.y)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${sel ? 0.34 : 0.22}" stroke-linejoin="round" opacity="${t > 0 && !editing ? 0.45 : 0.95}" stroke-dasharray="${role(sp.pos, f.format) === "line" ? "" : ""}"/>`;
+    const a = pts[pts.length - 2], b = pts[pts.length - 1];
+    s += pathEnd(path, sp.pos, f.format) === "block" ? blockEnd(a, b, col) : arrowHead(a, b, col);
+    if (editing && state.editMode === "play" && sel) path.pts.forEach(([x, y], i) => { s += `<circle data-wp data-pos="${esc(sp.pos)}" data-i="${i}" cx="${x}" cy="${sy(y)}" r="0.55" fill="${col}" stroke="#111" stroke-width="0.12" style="cursor:grab"/>`; });
+  }
+  // players
+  for (const sp of f.spots) {
+    const p = posAt(sp, play?.paths?.[sp.pos], f.format, t);
+    const off = f.side === "O", sel = editing && state.selPos === sp.pos;
+    const label = nameFor(f, sp.pos), fs = label.length > 3 ? 0.62 : 0.8;
+    s += `<g data-pl="${esc(sp.pos)}" style="cursor:${editing ? "pointer" : "default"}">
+      <circle cx="${p.x}" cy="${sy(p.y)}" r="1" fill="${off ? "#ffffff" : "#dc2626"}" stroke="${sel ? "var(--gold)" : off ? "#0b1220" : "#fff"}" stroke-width="${sel ? 0.32 : 0.14}"/>
+      <text x="${p.x}" y="${sy(p.y) + fs * 0.36}" font-size="${fs}" text-anchor="middle" font-weight="800" fill="${off ? "#0b1220" : "#fff"}" style="pointer-events:none">${esc(label)}</text></g>`;
+  }
+  // ball
+  const ball = ballAt(play, f, t);
+  if (ball) {
+    const bx = ball.x, by = sy(ball.y) - ball.air;
+    if (ball.flying) s += `<ellipse cx="${ball.x}" cy="${sy(ball.y)}" rx="0.45" ry="0.22" fill="#000" opacity=".3"/>`;
+    s += `<g transform="translate(${bx} ${by}) rotate(${ball.flying ? -30 : -20})"><ellipse rx="${0.55 + ball.air * 0.12}" ry="${0.34 + ball.air * 0.07}" fill="#8b4513" stroke="#3b1d07" stroke-width="0.08"/><line x1="-0.2" x2="0.2" y1="0" y2="0" stroke="#fff" stroke-width="0.07"/></g>`;
+  }
+  svg.innerHTML = s;
+}
+
+// ---------------------------------------------------------------- playback
+let last = 0;
+function setT(t) {
+  const d = playDuration(currentPlay(), currentFormation());
+  state.t = Math.max(0, Math.min(d, t));
+  $("#scrub").value = d ? Math.round((state.t / d) * 1000) : 0;
+  $("#time").textContent = `${state.t.toFixed(1)}s / ${d.toFixed(1)}s`;
+  draw();
+}
+function tick(ts) {
+  if (!state.playing) return;
+  const dt = last ? (ts - last) / 1000 : 0; last = ts;
+  const d = playDuration(currentPlay(), currentFormation());
+  if (state.t >= d) { setPlaying(false); return; }
+  setT(state.t + dt * state.rate);
+  requestAnimationFrame(tick);
+}
+function setPlaying(on) {
+  if (on && !currentPlay()) return;
+  state.playing = on;
+  $("#btn-play").textContent = on ? "❚❚" : "▶";
+  $("#btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
+  if (on) { if (state.t >= playDuration(currentPlay(), currentFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
+}
+$("#btn-play").onclick = () => setPlaying(!state.playing);
+$("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
+$("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
+$("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(currentPlay(), currentFormation())); };
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input,textarea,select")) return;
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!state.playing); }
+  if (e.key === "ArrowRight") setT(state.t + 0.1);
+  if (e.key === "ArrowLeft") setT(state.t - 0.1);
+});
+
+// ---------------------------------------------------------------- sidebar
+function setSeg(el, v) { el.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
+function visibleFormations() { return book.formations.filter((f) => f.format === state.format && (state.side === "all" || f.side === state.side)); }
+function visiblePlays() {
+  const fids = new Set(visibleFormations().map((f) => f.id));
+  let list = book.plays.filter((p) => fids.has(p.formationId) && (!state.formationId || p.formationId === state.formationId) && (state.type === "all" || p.type === state.type));
+  if (state.pkg !== "all") {
+    const pk = book.packages.find((k) => k.id === state.pkg);
+    const order = pk ? pk.playIds : [];
+    list = list.filter((p) => order.includes(p.id)).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  }
+  return list;
+}
+function renderSidebar() {
+  setSeg($("#fmt"), state.format); setSeg($("#side"), state.side); setSeg($("#labels"), state.labels);
+  $("#btn-ghost").setAttribute("aria-pressed", String(state.ghost));
+  const forms = visibleFormations();
+  $("#formations").innerHTML = forms.length
+    ? `<button class="item" data-f="" aria-current="${!state.formationId}"><span class="name">All formations</span></button>` +
+      forms.map((f) => `<button class="item" data-f="${f.id}" aria-current="${state.formationId === f.id}"><span class="tag ${f.side}">${f.side === "O" ? "OFF" : "DEF"}</span><span class="name">${esc(f.name)}</span><span class="tag">${book.plays.filter((p) => p.formationId === f.id).length}</span></button>`).join("")
+    : `<p class="empty">No ${state.format}v${state.format} formations yet.</p>`;
+  $("#packages").innerHTML = [`<button class="chip" data-pk="all" aria-pressed="${state.pkg === "all"}">All</button>`]
+    .concat(book.packages.map((k) => `<button class="chip" data-pk="${k.id}" aria-pressed="${state.pkg === k.id}">${esc(k.name)}${state.mode === "edit" ? `<span class="x" data-delpk="${k.id}" title="Delete package">✕</span>` : ""}</button>`)).join("");
+  const types = state.side === "all" ? [...TYPES.O, ...TYPES.D] : TYPES[state.side];
+  $("#types").innerHTML = ["all", ...types].map((t) => `<button class="chip" data-ty="${t}" aria-pressed="${state.type === t}">${t === "all" ? "All" : t[0].toUpperCase() + t.slice(1)}</button>`).join("");
+  const plays = visiblePlays();
+  const ordered = state.pkg !== "all";
+  $("#plays").innerHTML = plays.length
+    ? plays.map((p, i) => `<div class="item" aria-current="${state.playId === p.id}" data-p="${p.id}" role="button" tabindex="0">
+        ${ordered ? `<span class="tag">${i + 1}</span>` : ""}<span class="name">${esc(p.name)}</span><span class="tag ${p.type}">${p.type}</span>
+        ${ordered ? `<span class="order"><button data-up="${p.id}" aria-label="Move up">▲</button><button data-down="${p.id}" aria-label="Move down">▼</button></span>` : ""}
+      </div>`).join("")
+    : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
+}
+$("#fmt").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.format = b.dataset.v; state.formationId = null; state.playId = null; state.type = "all"; savePrefs(); refresh(); };
+$("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.side = b.dataset.v; state.formationId = null; state.type = "all"; savePrefs(); refresh(); };
+$("#labels").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.labels = b.dataset.v; savePrefs(); renderSidebar(); draw(); };
+$("#btn-ghost").onclick = () => { state.ghost = !state.ghost; savePrefs(); renderSidebar(); draw(); };
+$("#formations").onclick = (e) => {
+  const b = e.target.closest("[data-f]"); if (!b) return;
+  state.formationId = b.dataset.f || null;
+  const p = currentPlay();
+  if (state.formationId && (!p || p.formationId !== state.formationId)) state.playId = (visiblePlays()[0] || {}).id || null;
+  refresh();
+};
+$("#packages").onclick = (e) => {
+  const del = e.target.closest("[data-delpk]");
+  if (del) { e.stopPropagation(); const pk = book.packages.find((k) => k.id === del.dataset.delpk); if (pk && confirm(`Delete the “${pk.name}” package? The plays stay in your playbook.`)) { book.packages = book.packages.filter((k) => k !== pk); if (state.pkg === pk.id) state.pkg = "all"; save(); refresh(); } return; }
+  const b = e.target.closest("[data-pk]"); if (!b) return; state.pkg = b.dataset.pk; refresh();
+};
+$("#types").onclick = (e) => { const b = e.target.closest("[data-ty]"); if (!b) return; state.type = b.dataset.ty; refresh(); };
+$("#plays").onclick = (e) => {
+  const up = e.target.closest("[data-up]"), down = e.target.closest("[data-down]");
+  if (up || down) {
+    const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
+    const id = (up || down).dataset.up || (up || down).dataset.down, i = pk.playIds.indexOf(id), j = i + (up ? -1 : 1);
+    if (i < 0 || j < 0 || j >= pk.playIds.length) return;
+    [pk.playIds[i], pk.playIds[j]] = [pk.playIds[j], pk.playIds[i]]; save(); renderSidebar(); return;
+  }
+  const it = e.target.closest("[data-p]"); if (!it) return; openPlay(it.dataset.p);
+};
+$("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
+function openPlay(id) { setPlaying(false); state.playId = id; state.selPos = null; state.t = 0; refresh(); }
+$("#btn-newpkg").onclick = () => {
+  const name = (prompt("Package name (e.g. “Red zone”, “vs Man”, “Opening script”)") || "").trim();
+  if (!name) return;
+  const pk = { id: "pk_" + uid(), name, playIds: [] };
+  book.packages.push(pk); state.pkg = pk.id; save(); refresh();
+};
+$("#btn-newplay").onclick = () => {
+  let f = currentFormation();
+  if (!f || !visibleFormations().includes(f)) f = visibleFormations().find((x) => x.side === "O") || visibleFormations()[0];
+  if (!f) { alert("Add or pick a formation first."); return; }
+  const p = { id: "p_" + uid(), name: "New play", formationId: f.id, type: TYPES[f.side][0], paths: {}, events: [], notes: "" };
+  book.plays.push(p);
+  if (state.pkg !== "all") book.packages.find((k) => k.id === state.pkg)?.playIds.push(p.id);
+  save(); state.playId = p.id; state.formationId = f.id; enterEdit("play"); refresh();
+};
+$("#btn-dupform").onclick = () => {
+  const f = currentFormation() || visibleFormations()[0];
+  if (!f) return;
+  const name = (prompt("Name for the new formation", f.name + " (copy)") || "").trim();
+  if (!name) return;
+  const nf = JSON.parse(JSON.stringify(f)); nf.id = "f_" + uid(); nf.name = name;
+  book.formations.push(nf); save();
+  state.formationId = nf.id; state.playId = null; enterEdit("formation"); refresh();
+};
+
+// ---------------------------------------------------------------- details / editing
+function enterEdit(mode) { setPlaying(false); state.mode = "edit"; state.editMode = mode; state.t = 0; }
+$("#btn-edit").onclick = () => { if (state.mode === "edit") { state.mode = "view"; state.selPos = null; } else enterEdit(currentPlay() ? "play" : "formation"); refresh(); };
+$("#btn-done").onclick = () => { state.mode = "view"; state.selPos = null; refresh(); };
+$("#editmode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.v === "play" && !currentPlay()) return; state.editMode = b.dataset.v; state.selPos = null; setT(0); refresh(); };
+$("#btn-dupplay").onclick = () => {
+  const p = currentPlay(); if (!p) return;
+  const np = JSON.parse(JSON.stringify(p)); np.id = "p_" + uid(); np.name = p.name + " (copy)";
+  book.plays.push(np); save(); state.playId = np.id; refresh();
+};
+$("#btn-delplay").onclick = () => {
+  const p = currentPlay(); if (!p || !confirm(`Delete “${p.name}”?`)) return;
+  book.plays = book.plays.filter((x) => x !== p); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => id !== p.id)));
+  save(); state.playId = null; state.mode = "view"; refresh();
+};
+$("#btn-delform").onclick = () => {
+  const f = currentFormation(); if (!f) return;
+  const n = book.plays.filter((p) => p.formationId === f.id).length;
+  if (!confirm(`Delete the “${f.name}” formation${n ? ` and its ${n} play${n > 1 ? "s" : ""}` : ""}?`)) return;
+  const gone = new Set(book.plays.filter((p) => p.formationId === f.id).map((p) => p.id));
+  book.plays = book.plays.filter((p) => !gone.has(p.id)); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => !gone.has(id))));
+  book.formations = book.formations.filter((x) => x !== f);
+  save(); state.formationId = null; state.playId = null; state.mode = "view"; refresh();
+};
+$("#title-in").oninput = (e) => { const p = currentPlay(); if (p) { p.name = e.target.value; save(); renderSidebar(); } };
+
+function renderTitle() {
+  const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
+  $("#title").hidden = editing && !!p; $("#title-in").hidden = !(editing && p);
+  $("#title").textContent = p ? p.name : f ? f.name : "Pick a play";
+  if (p) $("#title-in").value = p.name;
+  $("#title-tags").innerHTML = f ? `<span class="tag ${f.side}">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(f.name)}</span>${p ? ` <span class="tag ${p.type}">${p.type}</span>` : ""}` : "";
+  $("#btn-edit").textContent = editing ? "Stop editing" : "Edit";
+  $("#editbar").hidden = !editing;
+  setSeg($("#editmode"), state.editMode);
+  $("#btn-dupplay").hidden = $("#btn-delplay").hidden = !p;
+  $("#edit-hint").textContent = state.editMode === "formation"
+    ? "Drag players to set the formation. Every play in this formation starts from here."
+    : state.selPos ? `Click the field to add points to ${state.selPos}'s path. Drag points to move them.` : "Tap a player, then click the field to draw their path.";
+}
+function renderDetails() {
+  const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
+  if (!f) { $("#details").innerHTML = `<div class="box"><h3>Get started</h3><p class="hint">Pick 5v5, 7v7 or 11v11 at the top, then a formation and a play. Hit ▶ to run it, ½× to slow it down, or drag the bar to step through it.</p></div>`; return; }
+  let h = "";
+  if (p) {
+    h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(p.notes) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
+    h += `<div class="box"><h3>Packages</h3>${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(p.id) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
+      ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>` : ""}</div>`;
+  }
+  if (editing && p && state.editMode === "play") {
+    const sel = state.selPos, path = sel ? p.paths[sel] : null;
+    h += `<div class="box"><h3>${sel ? `Player: ${esc(sel)}` : "Player"}</h3>${sel ? `
+      <div class="row"><label>Speed</label><input type="range" id="pspeed" min="2" max="9" step="0.5" value="${pathSpeed(path, sel, f.format)}"><span id="pspeed-v">${pathSpeed(path, sel, f.format)} yd/s</span></div>
+      <div class="row"><label>Wait</label><input type="range" id="pdelay" min="0" max="3" step="0.1" value="${path?.delay || 0}"><span id="pdelay-v">${(path?.delay || 0).toFixed(1)} s</span></div>
+      <div class="row"><label>End</label><select id="pend"><option value="arrow" ${pathEnd(path, sel, f.format) === "arrow" ? "selected" : ""}>Arrow (route/run)</option><option value="block" ${pathEnd(path, sel, f.format) === "block" ? "selected" : ""}>Block (⊥)</option></select></div>
+      <div class="row"><button class="btn sm" id="pundo">Undo last point</button><button class="btn sm danger" id="pclear">Clear path</button></div>` : `<p class="hint">Tap a player on the field.</p>`}</div>`;
+    if (f.side === "O") {
+      const evs = (p.events || []).slice().sort((a, b) => a.t - b.t);
+      h += `<div class="box"><h3>The ball</h3><ul class="events">${evs.map((e, i) => `<li><span class="tag">${e.t.toFixed(1)}s</span> ${e.kind} to <b>${esc(e.to)}</b> <button class="btn sm danger" data-delev="${p.events.indexOf(e)}">✕</button></li>`).join("") || `<li class="hint">Snaps to the QB. Add a handoff, pitch or pass.</li>`}</ul>
+        <div class="row"><select id="evkind"><option value="pass">Pass</option><option value="handoff">Handoff</option><option value="pitch">Pitch / lateral</option></select>
+        <span>to</span><select id="evto">${f.spots.map((s) => `<option ${s.pos === sel ? "selected" : ""}>${esc(s.pos)}</option>`).join("")}</select></div>
+        <div class="row"><button class="btn sm primary" id="evadd">Add at ${state.t.toFixed(1)}s</button><span class="hint">Drag the bar to the moment it happens first.</span></div></div>`;
+    }
+  }
+  h += `<div class="box" style="grid-column:1/-1"><h3>Personnel · ${esc(f.name)}</h3>${book.roster.length ? `<div class="lineup">${f.spots.map((s) => `<label>${esc(s.pos)}<select data-lineup="${esc(s.pos)}"><option value="">—</option>${book.roster.map((k) => `<option value="${k.id}" ${f.lineup?.[s.pos] === k.id ? "selected" : ""}>${k.number ? "#" + esc(k.number) + " " : ""}${esc(k.name)}</option>`).join("")}</select></label>`).join("")}</div><p class="hint">Use <b>#</b> or <b>Name</b> at the top to show your players on the field.</p>` : `<p class="hint">Add your players under <b>Roster</b> (top right), then pick who plays each spot here.</p>`}</div>`;
+  $("#details").innerHTML = h;
+}
+$("#details").addEventListener("input", (e) => {
+  const p = currentPlay(), f = currentFormation();
+  if (e.target.id === "notes" && p) { p.notes = e.target.value; save(); }
+  if (!p || !state.selPos) return;
+  const path = (p.paths[state.selPos] ||= { pts: [] });
+  if (e.target.id === "pspeed") { path.speed = +e.target.value; $("#pspeed-v").textContent = `${path.speed} yd/s`; save(); setT(state.t); }
+  if (e.target.id === "pdelay") { path.delay = +e.target.value; $("#pdelay-v").textContent = `${path.delay.toFixed(1)} s`; save(); setT(state.t); }
+});
+$("#details").addEventListener("change", (e) => {
+  const p = currentPlay(), f = currentFormation();
+  const pk = e.target.dataset.inpk;
+  if (pk && p) { const k = book.packages.find((x) => x.id === pk); if (k) { k.playIds = e.target.checked ? [...k.playIds, p.id] : k.playIds.filter((id) => id !== p.id); save(); renderSidebar(); } }
+  if (e.target.id === "ptype" && p) { p.type = e.target.value; save(); renderSidebar(); renderTitle(); }
+  if (e.target.id === "pend" && p && state.selPos) { (p.paths[state.selPos] ||= { pts: [] }).end = e.target.value; save(); draw(); }
+  const lp = e.target.dataset.lineup;
+  if (lp != null && f) { f.lineup ||= {}; if (e.target.value) f.lineup[lp] = e.target.value; else delete f.lineup[lp]; save(); draw(); }
+});
+$("#details").addEventListener("click", (e) => {
+  const p = currentPlay(); if (!p) return;
+  if (e.target.id === "pundo" && state.selPos) { p.paths[state.selPos]?.pts.pop(); save(); setT(state.t); }
+  if (e.target.id === "pclear" && state.selPos) { delete p.paths[state.selPos]; save(); setT(state.t); renderDetails(); }
+  if (e.target.id === "evadd") { (p.events ||= []).push({ t: Math.round(state.t * 10) / 10, kind: $("#evkind").value, to: $("#evto").value }); save(); setT(state.t); renderDetails(); }
+  const de = e.target.closest("[data-delev]");
+  if (de) { p.events.splice(+de.dataset.delev, 1); save(); setT(state.t); renderDetails(); }
+});
+
+// ---------------------------------------------------------------- dragging on the field
+let drag = null;
+function toField(e) {
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return { x: p.x, y: TOP - p.y };
+}
+const snap = (v) => Math.round(v * 2) / 2;
+svg.addEventListener("pointerdown", (e) => {
+  if (state.mode !== "edit") return;
+  const f = currentFormation(), p = currentPlay(); if (!f) return;
+  const pt = toField(e), wp = e.target.closest("[data-wp]"), pl = e.target.closest("[data-pl]");
+  if (state.editMode === "formation") {
+    if (pl) { drag = { kind: "spot", pos: pl.dataset.pl }; svg.setPointerCapture(e.pointerId); }
+    return;
+  }
+  if (!p) return;
+  if (wp) { drag = { kind: "wp", pos: wp.dataset.pos, i: +wp.dataset.i }; svg.setPointerCapture(e.pointerId); return; }
+  if (pl) { state.selPos = pl.dataset.pl; renderTitle(); renderDetails(); draw(); return; }
+  if (state.selPos) {
+    const path = (p.paths[state.selPos] ||= { pts: [] });
+    path.pts.push([snap(pt.x), snap(pt.y)]); save(); setT(state.t);
+  }
+});
+svg.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const f = currentFormation(), p = currentPlay(), pt = toField(e), W = WIDTH[f.format] / 2;
+  const x = Math.max(-W, Math.min(W, snap(pt.x))), y = Math.max(BOTTOM + 1, Math.min(TOP - 1, snap(pt.y)));
+  if (drag.kind === "spot") { const s = f.spots.find((q) => q.pos === drag.pos); if (s) { s.x = x; s.y = y; } }
+  if (drag.kind === "wp" && p) { const pts = p.paths[drag.pos]?.pts; if (pts?.[drag.i]) pts[drag.i] = [x, y]; }
+  draw();
+});
+const endDrag = () => { if (drag) { drag = null; save(); setT(state.t); } };
+svg.addEventListener("pointerup", endDrag);
+svg.addEventListener("pointercancel", endDrag);
+
+// ---------------------------------------------------------------- roster, import/export
+function renderRoster() {
+  $("#roster-rows").innerHTML = book.roster.map((k) => `<div class="roster-row" data-kid="${k.id}"><input type="text" inputmode="numeric" placeholder="#" value="${esc(k.number)}" data-k="number"><input type="text" placeholder="Name" value="${esc(k.name)}" data-k="name"><button class="btn sm danger" data-delkid="${k.id}">Remove</button></div>`).join("") || `<p class="empty">No players yet.</p>`;
+}
+$("#btn-roster").onclick = () => { renderRoster(); $("#roster").showModal(); };
+$("#roster-close").onclick = () => { $("#roster").close(); };
+$("#roster").addEventListener("close", () => { renderDetails(); draw(); });
+$("#roster-add").onclick = () => { book.roster.push({ id: "k_" + uid(), number: "", name: "" }); save(); renderRoster(); const ins = $("#roster-rows").querySelectorAll('input[data-k="name"]'); ins[ins.length - 1]?.focus(); };
+$("#roster-rows").addEventListener("input", (e) => { const row = e.target.closest("[data-kid]"); const k = row && book.roster.find((x) => x.id === row.dataset.kid); if (k) { k[e.target.dataset.k] = e.target.value; save(); } });
+$("#roster-rows").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-delkid]"); if (!b) return;
+  book.roster = book.roster.filter((k) => k.id !== b.dataset.delkid);
+  book.formations.forEach((f) => { for (const pos in f.lineup || {}) if (f.lineup[pos] === b.dataset.delkid) delete f.lineup[pos]; });
+  save(); renderRoster();
+});
+$("#btn-export").onclick = () => {
+  const blob = new Blob([JSON.stringify(book, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `nxt-playbook-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$("#btn-import").onclick = () => $("#file").click();
+$("#file").onchange = async (e) => {
+  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.formations) || !Array.isArray(data.plays)) throw new Error("That file isn't an NXT playbook.");
+    if (!confirm("Replace the playbook on this device with the imported one?")) return;
+    data.roster ||= []; data.packages ||= [];
+    book = data; save(); state.playId = null; state.formationId = null; refresh();
+  } catch (err) { alert(err.message || "Couldn't read that file."); }
+};
+
+// ---------------------------------------------------------------- go
+function refresh() {
+  // Keep the open play (and formation) in step with the format / side on screen.
+  const shown = new Set(visibleFormations().map((f) => f.id));
+  if (state.formationId && !shown.has(state.formationId)) state.formationId = null;
+  const p = currentPlay();
+  if (p && !shown.has(p.formationId)) state.playId = null;
+  if (!state.playId && state.mode !== "edit") state.playId = (visiblePlays()[0] || {}).id || null;
+  renderSidebar(); renderTitle(); renderDetails(); setT(state.t);
+}
+if (!state.playId) state.playId = (visiblePlays()[0] || {}).id || null;
+refresh();
+</script>
+</body>
+</html>
