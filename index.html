@@ -937,7 +937,7 @@ function renderTitle() {
   $("#btn-undo").disabled = !undoStack.length;
   $("#edit-hint").textContent = state.editMode === "formation"
     ? "Drag players to set the formation. Every play in this formation starts from here."
-    : state.selPos ? `Drag from ${state.selPos} to draw their line, one piece at a time (or click to add a point). Drag the dots to reshape it.` : "Press on a player and drag to draw their line.";
+    : state.selPos ? `Drag from ${state.selPos} to draw their line, one piece at a time. Drag a dot to move it; tap a dot to delete it and everything after it.` : "Press on a player and drag to draw their line.";
 }
 function renderDetails() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
@@ -1053,8 +1053,12 @@ svg.addEventListener("pointerdown", (e) => {
     return;
   }
   if (!p) return;
-  // Middle points reshape the line; the end point keeps drawing from there.
-  if (wp && +wp.dataset.i < (p.paths[wp.dataset.pos]?.pts.length || 0) - 1) { drag = { kind: "wp", pos: wp.dataset.pos, i: +wp.dataset.i }; svg.setPointerCapture(e.pointerId); return; }
+  // Tap a dot: delete it and everything after it. Drag a middle dot: reshape. Drag the end dot: keep drawing.
+  if (wp) {
+    const i = +wp.dataset.i, isEnd = i === (p.paths[wp.dataset.pos]?.pts.length || 0) - 1;
+    drag = isEnd ? { kind: "draw", pos: wp.dataset.pos, start: pt, cur: null, moved: false, wpIndex: i } : { kind: "wp", pos: wp.dataset.pos, i, start: pt, moved: false };
+    svg.setPointerCapture(e.pointerId); return;
+  }
   // Press on a player (or anywhere once a player is picked) and drag to draw the next piece of their line.
   // A plain click on a player just picks them; a plain click on the field adds a point there.
   const pos = pl ? pl.dataset.pl : state.selPos;
@@ -1069,13 +1073,23 @@ svg.addEventListener("pointermove", (e) => {
   if (!drag) return;
   const f = currentFormation(), p = currentPlay(), { x, y } = clampPt(f, toField(e));
   if (drag.kind === "spot") { const s = f.spots.find((q) => q.pos === drag.pos); if (s) { s.x = x; s.y = y; } }
-  if (drag.kind === "wp" && p) { const pts = p.paths[drag.pos]?.pts; if (pts?.[drag.i]) pts[drag.i] = [x, y]; }
+  if (drag.kind === "wp" && p) {
+    if (!drag.moved && dist(drag.start, { x, y }) > 0.6) drag.moved = true;
+    const pts = p.paths[drag.pos]?.pts; if (drag.moved && pts?.[drag.i]) pts[drag.i] = [x, y];
+  }
   if (drag.kind === "draw") { drag.cur = { x, y }; if (dist(drag.start, drag.cur) > 0.75) drag.moved = true; }
   draw();
 });
 const endDrag = (e) => {
   if (!drag) return;
   const d = drag; drag = null;
+  // A tap (no drag) on a dot deletes it and everything after it.
+  const tappedDot = (d.kind === "wp" || (d.kind === "draw" && d.wpIndex != null)) && !d.moved;
+  if (tappedDot) {
+    const p = currentPlay(), path = p?.paths[d.pos], i = d.kind === "wp" ? d.i : d.wpIndex;
+    if (path) path.pts = path.pts.slice(0, i);
+    save(); setT(state.t); renderDetails(); return;
+  }
   if (d.kind === "draw") {
     const p = currentPlay(), f = currentFormation();
     // Dragged: the line ends where you let go. Clicked on the field: a point there. Clicked a player: just picked.
