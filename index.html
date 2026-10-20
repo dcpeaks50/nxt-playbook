@@ -294,9 +294,9 @@ function samplePlaybook() {
   const P = (id, name, formationId, type, paths, events = [], notes = "") => ({ id, name, formationId, type, paths, events, notes });
 
   const formations = [
-    F("f11i", "I-Form", "11", "O", [...OL, ["TE", 6, -0.7], ["X", -17, -0.7], ["Z", 15, -1.6], ["QB", 0, -1.6], ["FB", 0, -4.5], ["TB", 0, -7]]),
+    F("f11i", "I-Form", "11", "O", [...OL, ["TE", 6, -0.7], ["X", -17, -0.7], ["Z", 15, -1.6], ["QB", 0, -2.5], ["FB", 0, -4.5], ["TB", 0, -7]]),
     F("f11t", "Shotgun Trips Right", "11", "O", [...OL, ["Y", 7.5, -1.6], ["H", 11, -1.6], ["Z", 16, -0.7], ["X", -17, -0.7], ["QB", 0, -5], ["RB", -2, -5]]),
-    F("f11g", "Goal Line", "11", "O", [...OL, ["TE", 6, -0.7], ["Y", -6, -0.7], ["H", 7.5, -1.6], ["QB", 0, -1.6], ["FB", 0, -4], ["TB", 0, -6.5]]),
+    F("f11g", "Goal Line", "11", "O", [...OL, ["TE", 6, -0.7], ["Y", -6, -0.7], ["H", 7.5, -1.6], ["QB", 0, -2.5], ["FB", 0, -4], ["TB", 0, -6.5]]),
     F("f11d", "4-3", "11", "D", [["LE", -5, 1], ["DT", -1.6, 1], ["NT", 1.6, 1], ["RE", 5, 1], ["WLB", -4, 4.5], ["MLB", 0, 4.5], ["SLB", 4, 4.5], ["LCB", -17, 6], ["RCB", 15, 6], ["FS", -7, 12], ["SS", 7, 12]]),
     F("f7s", "Spread", "7", "O", [["C", 0, -0.7], ["QB", 0, -5], ["RB", -2, -5], ["X", -16, -0.7], ["H", -9, -1.6], ["Y", 9, -1.6], ["Z", 16, -0.7]]),
     F("f7b", "Bunch Right", "7", "O", [["C", 0, -0.7], ["QB", 0, -5], ["RB", -2, -5], ["X", -16, -0.7], ["H", 10, -1.6], ["Y", 11.5, -0.7], ["Z", 13, -1.6]]),
@@ -738,6 +738,11 @@ if (book.version < 11) {
   add("pk_xp", ["fl_split23_r"]);
   book.version = 11;
 }
+// v12: under-center QB a step back so the center and QB can both be tapped.
+if (book.version < 12) {
+  for (const f of book.formations) if (f.id === "f11i" || f.id === "f11g") { const qb = f.spots.find((s) => s.pos === "QB"); if (qb && qb.x === 0 && qb.y === -1.6) qb.y = -2.5; }
+  book.version = 12;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
@@ -1100,7 +1105,7 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
     const W2 = WIDTH[fmt] / 2, gy = play.goal;
     s += `<rect x="${-W2}" y="0" width="${WIDTH[fmt]}" height="${sy(gy)}" fill="${ink ? "#dbeafe" : "#1d4ed8"}" opacity="${ink ? 1 : 0.38}"/>`;
     s += `<line x1="${-W2}" x2="${W2}" y1="${sy(gy)}" y2="${sy(gy)}" stroke="${ink ? "#1e3a8a" : "#fff"}" stroke-width="0.45"/>`;
-    s += `<text x="0" y="${sy(gy + Math.min(5, (TOP - gy) / 2)) + 0.8}" text-anchor="middle" font-size="2.4" font-weight="900" fill="${ink ? "#1e3a8a" : "#fff"}" opacity=".85" letter-spacing="0.4">END ZONE</text>`;
+    s += `<text style="pointer-events:none" x="0" y="${sy(gy + Math.min(5, (TOP - gy) / 2)) + 0.8}" text-anchor="middle" font-size="2.4" font-weight="900" fill="${ink ? "#1e3a8a" : "#fff"}" opacity=".85" letter-spacing="0.4">END ZONE</text>`;
   }
   const g = ghost;
   if (g) for (const sp of g.spots) {
@@ -1156,15 +1161,15 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
   const ball = ballAt(play, f, t);
   if (ball) {
     const bx = ball.x, by = sy(ball.y) - ball.air;
-    if (ball.flying) s += `<ellipse cx="${ball.x}" cy="${sy(ball.y)}" rx="0.45" ry="0.22" fill="#000" opacity=".3"/>`;
-    s += `<g transform="translate(${bx} ${by}) rotate(${ball.flying ? -30 : -20})"><ellipse rx="${0.55 + ball.air * 0.12}" ry="${0.34 + ball.air * 0.07}" fill="#8b4513" stroke="#3b1d07" stroke-width="0.08"/><line x1="-0.2" x2="0.2" y1="0" y2="0" stroke="#fff" stroke-width="0.07"/></g>`;
+    if (ball.flying) s += `<ellipse style="pointer-events:none" cx="${ball.x}" cy="${sy(ball.y)}" rx="0.45" ry="0.22" fill="#000" opacity=".3"/>`;
+    s += `<g style="pointer-events:none" transform="translate(${bx} ${by}) rotate(${ball.flying ? -30 : -20})"><ellipse rx="${0.55 + ball.air * 0.12}" ry="${0.34 + ball.air * 0.07}" fill="#8b4513" stroke="#3b1d07" stroke-width="0.08"/><line x1="-0.2" x2="0.2" y1="0" y2="0" stroke="#fff" stroke-width="0.07"/></g>`;
   }
   // Motion plays: "MOTION…" until the snap, then a quick "SNAP!"
   const snapT = play?.snap || 0;
   if (f.side === "O" && snapT > 0 && t > 0) {
     const shifting = Object.values(play.paths || {}).some((q) => q.shift);
     const label = t < snapT ? (shifting ? "SHIFT…" : "MOTION…") : t < snapT + 0.7 ? "SNAP!" : "";
-    if (label) s += `<text x="0" y="${sy(-9.3)}" text-anchor="middle" font-size="1.6" font-weight="900" fill="${label === "SNAP!" ? "#facc15" : "#fff"}" stroke="#0b1220" stroke-width="0.08" paint-order="stroke">${label}</text>`;
+    if (label) s += `<text style="pointer-events:none" x="0" y="${sy(-9.3)}" text-anchor="middle" font-size="1.6" font-weight="900" fill="${label === "SNAP!" ? "#facc15" : "#fff"}" stroke="#0b1220" stroke-width="0.08" paint-order="stroke">${label}</text>`;
   }
   return s;
 }
