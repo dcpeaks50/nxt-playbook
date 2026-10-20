@@ -402,9 +402,9 @@ function coachPlays() {
     P("p7ladder", "Slot 4 Ladder", "f7slot", "pass", {
       C: blk(0, -1.8), LG: blk(-2.4, -1.8), RG: blk(2.4, -1.8), RB: r([[1.5, -3.2]], { end: "block" }), QB: r([[0, -6.2]], { speed: 3 }),
       X: r([[-14, 5.5], [-13.6, 4.5]], { speed: 6.3 }),
-      Y: r([[4, -2.6], [0, -2.8], [-3, -2.6], [-8, -0.5], [-11, 2.5], [-13.5, 4.8], [-15, 8], [-15.5, 18]], { speed: 6.5, curve: true, motion: true, star: true }),
-    }, [{ t: 2, kind: "pass", to: "X" }, { t: 3.6, kind: "pitch", to: "Y" }],
-      "Y goes in motion; snap as he gets just past the QB. X runs a 4 (hitch) and catches it. Y circles around behind X and takes the pitch to the end zone.", { snap: 1.4, goal: 14 }),
+      Y: r([[4, -2.6], [0, -2.8], [-3, -2.6], [-8, -1.2], [-11.5, 0], [-16, 1.2], [-18.5, 5], [-18.5, 18]], { speed: 6.5, curve: true, motion: true, star: true }),
+    }, [{ t: 2, kind: "pass", to: "X" }, { t: 3.75, kind: "pitch", to: "Y" }],
+      "Y goes in motion; snap as he gets just past the QB. X runs a 4 (hitch) and catches it. Y circles underneath and outside X, staying 4 yards away, and X pitches it back to him. Y takes it up the sideline to the end zone.", { snap: 1.4, goal: 14 }),
     P("p7revfake", "Twins X Reverse Fake", "f7twins", "run", {
       C: blk(0.5, 1.2), QB: r([[1, -4.6], [3.5, -3]], { speed: 3 }),
       Y: r([[9, 4], [7, 19]], { speed: 6.3 }), Z: r([[-15, 20]], { speed: 6.3 }),
@@ -480,6 +480,12 @@ if (book.version < 7) {
   const man = book.packages.find((k) => k.id === "pk_man");
   if (man && !man.playIds.includes("p7hitchgo")) man.playIds.push("p7hitchgo");
   book.version = 7;
+}
+// v8: Slot 4 Ladder: Y circles wide so X has room to pitch it back to him.
+if (book.version < 8) {
+  const lad = coachPlays().plays.find((p) => p.id === "p7ladder"), i = book.plays.findIndex((q) => q.id === "p7ladder");
+  if (i >= 0) book.plays[i] = lad; else book.plays.push(lad);
+  book.version = 8;
 }
 const prefs = store.get(PREFS, {});
 const state = {
