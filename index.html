@@ -580,6 +580,42 @@ function flagPlays() {
       H: r([at(BUNCH, "H"), [6, -4], [11, -2]], { shift: true }), Z: r([at(BUNCH, "Z"), [4, 5], [10, 11]], { shift: true, star: true }),
       Y: r([[2.5, 5], [2.8, 4.2]]),
     }, [{ t: SHIFT_SNAP + 2, kind: "pass", to: "Z" }], "Line up spread out in Split. Everyone shifts into Bunch at the last second, sets, then runs Bunch Right Smash: Z 7 (corner) over Y's 4 (hitch), H to the flat.", { snap: SHIFT_SNAP }),
+    // ---------- Trick plays (brought over from the old Gun formations into this system)
+    P("fl_zrev_r", "Pro Right Z Reverse", "fl_pro_r", "run", {
+      C: blk(0.5, 1.2), QB: r([[0.8, -4.8], [3, -3.5]], { speed: 3 }),
+      Y: r([[2.5, 4], [1, 19]]), X: r([[-15, 20]]),
+      H: r([[3.5, -2.5], [2, 3], [-4, 7]], { speed: 6.8, end: "block" }),
+      A: r([[-0.6, -5.5], [4, -5.3], [7.5, -5.3]], { speed: 6 }),
+      Z: r([[7, -4], [3, -7], [-2, -7.3], [-9, -6], [-12, -1.5], [-13, 5], [-12.5, 18]], { speed: 7, delay: 0.5, curve: true, star: true }),
+    }, [{ t: 0.6, kind: "handoff", to: "A" }, { t: 1.25, kind: "handoff", to: "Z" }],
+      "A takes the handoff running right and gives it back to Z coming behind him; Z takes it around the left side for the TD. Y runs a seam to pull the safety, X goes deep to take the corner, H gets upfield fast to block.", { goal: 14 }),
+    P("fl_zrevfake_r", "Pro Right Z Reverse Fake", "fl_pro_r", "run", {
+      C: blk(0.5, 1.2), QB: r([[0.8, -4.8], [3, -3.5]], { speed: 3 }),
+      Y: r([[2.5, 4], [1, 19]]), X: r([[-15, 20]]),
+      H: r([[4, -3], [9, 0], [11.5, 3]], { speed: 6.5, end: "block" }),
+      A: r([[-0.6, -5.5], [4, -5.3], [8, -4.8], [11, -1.5], [12.5, 3], [12.5, 18]], { speed: 6, curve: true, star: true }),
+      Z: r([[7, -4], [3, -7], [-2, -7.3], [-9, -6], [-12, -1.5], [-13, 5]], { speed: 7, delay: 0.5, curve: true, dash: "dotted" }),
+    }, [{ t: 0.6, kind: "handoff", to: "A" }],
+      "Looks just like Pro Right Z Reverse. A fakes the handoff to Z and keeps it around the right side behind H. Z sells the fake all the way (dotted line = no ball).", { goal: 14 }),
+    P("fl_hpass_r", "Pro Right H Pass", "fl_pro_r", "pass", {
+      C: blk(0.5, 1.2), QB: r([[0.6, -5.3], [2, -4]], { speed: 3 }),
+      H: r([[1.1, -5.6], [5, -5.2], [8, -5], [9.5, -4.5]], { speed: 6, delay: 0.25 }),
+      A: r([[2, -4], [7, -2], [9, 0.5]], { speed: 6.5, end: "block" }),
+      Z: r([[10, 0.8], [11, 2.5], [12.5, 18]], { star: true }), Y: r([[2.5, 4], [1, 19]]), X: r([[-15, 20]]),
+    }, [{ t: 0.45, kind: "handoff", to: "H" }, { t: 2.4, kind: "pass", to: "Z" }],
+      "Looks like H Sweep. Z sells a block for a step, then goes deep. H pulls up and throws it to Z over the top. Y and X run deep to clear out the safety and corner.", { goal: 14 }),
+    P("fl_x49_r", "Pro Right X 49 (Hitch & Go)", "fl_pro_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.2], [-0.4, -5.9]], { speed: 3 }),
+      X: r([[-15, 5.5], [-14.6, 4.6], [-15.2, 5.6], [-16, 12], [-16.5, 20]], { star: true }),
+      Z: r([[9, 6], [14, 6]]), Y: r([[2.5, 5], [2.8, 4.2]]), H: r([[5, -4.5], [9, -2.5]]), A: r([[-3, -4.5], [-6, -2]]),
+    }, [{ t: 2.3, kind: "pass", to: "X" }],
+      "Backside X runs a 4 (hitch) and turns back like he's catching it. QB pump fakes it. When the corner jumps it, X takes off on a 9 and the QB throws it deep. Call side: Z 3 (out), Y sits, H to the flat.", { goal: 14 }),
+    P("fl_ladder_r", "Split Right X 4 Ladder", "fl_split_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.2]], { speed: 3 }), Y: r([[2.5, 5], [2.8, 4.2]]), Z: r([[15, 20]]),
+      X: r([[-15, 5.5], [-14.6, 4.5]]), A: r([[-8, 4], [-6, 19]]),
+      H: r([[4, -2.7], [0, -2.9], [-3, -2.7], [-8.5, -1.4], [-12.5, 0], [-17, 1.2], [-19, 5], [-19, 18]], { speed: 6.5, curve: true, motion: true, star: true }),
+    }, [{ t: 2, kind: "pass", to: "X" }, { t: 3.75, kind: "pitch", to: "H" }],
+      "H goes in motion across; snap as he gets just past the QB. X runs a 4 (hitch) and catches it. H circles underneath and outside X, about 4 yards away, and X pitches it back to him. A's seam and Z's 9 clear it out.", { snap: 1.4, goal: 14 }),
   ];
 
   // Left versions: mirror every formation and play (H and Y go to the left, the call side).
@@ -591,10 +627,13 @@ function flagPlays() {
   const ids = (re) => allP.filter((p) => re.test(p.id)).map((p) => p.id);
   const packages = [
     { id: "pk_flag", name: "Flag 7v7", playIds: allP.map((p) => p.id) },
-    { id: "pk_motion", name: "Motion & shifts", playIds: ids(/jet|z7|2split|2bunch/) },
+    { id: "pk_motion", name: "Motion & shifts", playIds: ids(/jet|z7|2split|2bunch|ladder/) },
   ];
   return { formations: allF, plays: allP, packages };
 }
+// The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
+const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
+const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
 /** Play names lead with the formation so the call reads at a glance (only renamed if the coach hasn't renamed it). */
 const RENAMES = {
   p11dive: ["Dive Right", "I-Form Dive Right"], p11toss: ["Toss Sweep Left", "I-Form Toss Left"], p11boot: ["PA Boot Right", "I-Form PA Boot Right"],
@@ -681,6 +720,23 @@ if (book.version < 10) {
   for (const p of fp.plays) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
   for (const k of fp.packages) { const mine = book.packages.find((x) => x.id === k.id); if (mine) { for (const id of k.playIds) if (!mine.playIds.includes(id)) mine.playIds.push(id); } else book.packages.push(k); }
   book.version = 10;
+}
+// v11: trick plays rebuilt in the flag formations; the old 7v7 Gun / Spread / Bunch offense is removed.
+if (book.version < 11) {
+  const fp = flagPlays();
+  for (const p of fp.plays) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
+  for (const k of fp.packages) { const mine = book.packages.find((x) => x.id === k.id); if (mine) { for (const id of k.playIds) if (!mine.playIds.includes(id)) mine.playIds.push(id); } else book.packages.push(k); }
+  const gone = new Set(book.plays.filter((p) => OLD_7V7_PLAYS.includes(p.id) || OLD_7V7_FORMATIONS.includes(p.formationId)).map((p) => p.id));
+  book.plays = book.plays.filter((p) => !gone.has(p.id));
+  book.formations = book.formations.filter((f) => !OLD_7V7_FORMATIONS.includes(f.id));
+  const add = (pkId, ids) => { const k = book.packages.find((x) => x.id === pkId); if (k) for (const id of ids) if (!k.playIds.includes(id) && book.plays.some((p) => p.id === id)) k.playIds.push(id); };
+  for (const k of book.packages) k.playIds = k.playIds.filter((id) => !gone.has(id));
+  add("pk_trick", ["fl_zrev_r", "fl_zrev_l", "fl_zrevfake_r", "fl_zrevfake_l", "fl_hpass_r", "fl_hpass_l", "fl_ladder_r", "fl_ladder_l"]);
+  add("pk_man", ["fl_x49_r", "fl_x49_l"]);
+  add("pk_open", ["fl_split23_r", "fl_splitjet_r", "fl_prosweep_r"]);
+  add("pk_zone", ["fl_bunchsmash_r", "fl_pro23_r"]);
+  add("pk_xp", ["fl_split23_r"]);
+  book.version = 11;
 }
 }
 const prefs = store.get(PREFS, {});
