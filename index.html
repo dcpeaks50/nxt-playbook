@@ -88,6 +88,26 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);padding:0}
 .sw[aria-pressed="true"]{outline:3px solid var(--gold);outline-offset:1px}
 .box .seg button{padding:5px 10px}
+#printarea{display:none}
+@media print{
+  @page{size:letter portrait;margin:0.4in}
+  body{background:#fff;color:#000}
+  header,.app,dialog{display:none!important}
+  #printarea{display:block}
+  .ppage{break-after:page;page-break-after:always;height:10.15in;display:grid;gap:0.18in}
+  .ppage:last-child{break-after:auto;page-break-after:auto}
+  .pcard{border:1.5px solid #111;border-radius:10px;padding:0.1in 0.12in;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .pcard .ph{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+  .pcard .pn{font-weight:900;font-size:15pt}
+  .pcard .pnum{font-weight:900;font-size:11pt;background:#111;color:#fff;border-radius:6px;padding:0 6px}
+  .pcard .pt{font-size:9pt;color:#333;margin-left:auto;text-align:right}
+  .pcard svg{flex:1;min-height:0;width:100%;height:100%;overflow:hidden}
+  .pcard .pnote{font-size:9pt;line-height:1.3;margin-top:4px;max-height:0.9in;overflow:hidden}
+  .pindex h1{font-size:20pt;margin:0 0 4px}
+  .pindex p{margin:0 0 12px;color:#444}
+  .pindex ol{columns:2;font-size:11pt;line-height:1.6;margin:0;padding-left:22px}
+  .pindex li span{color:#555;font-size:9pt}
+}
 </style>
 </head>
 <body>
@@ -100,6 +120,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <button data-v="all">All</button><button data-v="O">Offense</button><button data-v="D">Defense</button>
   </div>
   <div class="spacer"></div>
+  <button class="btn" id="btn-print">Print / PDF</button>
   <button class="btn" id="btn-roster">Roster</button>
   <button class="btn" id="btn-export">Export</button>
   <button class="btn" id="btn-import">Import</button>
@@ -160,6 +181,28 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <div class="details" id="details"></div>
   </main>
 </div>
+
+<dialog id="printdlg">
+  <div class="dlg-h"><h2>Print / Save as PDF</h2><button class="btn" id="print-close">Cancel</button></div>
+  <div class="dlg-b">
+    <div class="box" style="margin-bottom:10px">
+      <h3>What to print</h3>
+      <label class="row"><input type="radio" name="pwhat" value="one" checked> <span id="pw-one">This play</span></label>
+      <label class="row"><input type="radio" name="pwhat" value="list"> <span id="pw-list">Plays in the list</span></label>
+      <label class="row"><input type="radio" name="pwhat" value="all"> <span id="pw-all">Whole playbook</span></label>
+    </div>
+    <div class="box" style="margin-bottom:10px">
+      <h3>Layout</h3>
+      <div class="row"><label>Per page</label><div class="seg" id="pper"><button data-v="1">1</button><button data-v="2" aria-pressed="true">2</button><button data-v="4">4</button><button data-v="6">6</button></div></div>
+      <label class="row"><input type="checkbox" id="pink" checked> Ink saver (white field)</label>
+      <label class="row"><input type="checkbox" id="pnotes" checked> Coaching notes</label>
+      <label class="row"><input type="checkbox" id="pghost"> Show the defense</label>
+    </div>
+    <p class="hint" style="margin:0 0 10px">In the print window, pick <b>Save as PDF</b> as the printer to get a PDF, or pick your printer to print.</p>
+    <button class="btn primary" id="print-go">Print / Save as PDF</button>
+  </div>
+</dialog>
+<div id="printarea" aria-hidden="true"></div>
 
 <dialog id="roster">
   <div class="dlg-h"><h2>Roster</h2><button class="btn" id="roster-close">Done</button></div>
@@ -588,24 +631,32 @@ function nameFor(f, pos) {
   if (state.labels === "name") return (kid.name || pos).split(" ")[0].slice(0, 8);
   return pos;
 }
-function fieldMarkup(fmt) {
+function fieldMarkup(fmt, ink = false) {
   const W = WIDTH[fmt], half = W / 2;
-  let s = `<rect x="${-half - 3}" y="0" width="${W + 6}" height="${TOP - BOTTOM}" fill="#256b2a"/>`;
-  for (let y = Math.floor(BOTTOM / 5) * 5; y < TOP; y += 5) {
+  const chalk = ink ? "#b8c0cc" : "var(--chalk)";
+  let s = `<rect x="${-half - 3}" y="0" width="${W + 6}" height="${TOP - BOTTOM}" fill="${ink ? "#ffffff" : "#256b2a"}"/>`;
+  if (!ink) for (let y = Math.floor(BOTTOM / 5) * 5 + 5; y < TOP; y += 5) {
     const i = Math.round(y / 5);
     s += `<rect x="${-half}" y="${sy(y + 5)}" width="${W}" height="5" fill="${i % 2 ? "var(--field)" : "var(--field2)"}"/>`;
   }
-  s += `<rect x="${-half}" y="0" width="${W}" height="${TOP - BOTTOM}" fill="none" stroke="var(--chalk)" stroke-width="0.25"/>`;
+  s += `<rect x="${-half}" y="0" width="${W}" height="${TOP - BOTTOM}" fill="none" stroke="${chalk}" stroke-width="0.25"/>`;
   for (let y = Math.ceil(BOTTOM); y <= TOP; y++) {
-    if (y % 5 === 0) s += `<line x1="${-half}" x2="${half}" y1="${sy(y)}" y2="${sy(y)}" stroke="var(--chalk)" stroke-width="${y % 10 === 0 ? 0.2 : 0.14}"/>`;
+    if (y % 5 === 0) s += `<line x1="${-half}" x2="${half}" y1="${sy(y)}" y2="${sy(y)}" stroke="${chalk}" stroke-width="${y % 10 === 0 ? 0.2 : 0.14}"/>`;
     else {
       const hx = fmt === "11" ? W * 0.17 : W * 0.15;
-      for (const x of [-half + 0.3, -hx, hx, half - 1.3]) s += `<line x1="${x}" x2="${x + 1}" y1="${sy(y)}" y2="${sy(y)}" stroke="var(--chalk)" stroke-width="0.12"/>`;
+      for (const x of [-half + 0.3, -hx, hx, half - 1.3]) s += `<line x1="${x}" x2="${x + 1}" y1="${sy(y)}" y2="${sy(y)}" stroke="${chalk}" stroke-width="0.12"/>`;
     }
   }
-  s += `<line x1="${-half}" x2="${half}" y1="${sy(0)}" y2="${sy(0)}" stroke="#60a5fa" stroke-width="0.32"/>`;
-  if (fmt === "11") s += `<line x1="${-half}" x2="${half}" y1="${sy(10)}" y2="${sy(10)}" stroke="#facc15" stroke-width="0.28" opacity=".9"/>`;
+  s += `<line x1="${-half}" x2="${half}" y1="${sy(0)}" y2="${sy(0)}" stroke="${ink ? "#2563eb" : "#60a5fa"}" stroke-width="0.32"/>`;
+  if (fmt === "11") s += `<line x1="${-half}" x2="${half}" y1="${sy(10)}" y2="${sy(10)}" stroke="${ink ? "#ca8a04" : "#facc15"}" stroke-width="0.28" opacity=".9"/>`;
   return s;
+}
+/** On white paper, light route colors (yellow, pale orange…) are darkened so they still show. */
+function inkColor(hex) {
+  const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  if (0.299 * r + 0.587 * g + 0.114 * b < 150) return hex;
+  const k = 0.55, h = (v) => Math.round(v * k).toString(16).padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
 }
 function arrowHead(a, b, color) {
   const ang = Math.atan2(sy(b.y) - sy(a.y), b.x - a.x), L = 0.9, w = 0.5;
@@ -627,27 +678,32 @@ function draw() {
     const minW = 26; if (x1 - x0 < minW) { const c = (x0 + x1) / 2; x0 = c - minW / 2; x1 = c + minW / 2; }
   }
   svg.setAttribute("viewBox", `${x0} 0 ${x1 - x0} ${TOP - BOTTOM}`);
-  let s = fieldMarkup(fmt);
-  if (!f) { svg.innerHTML = s + `<text x="0" y="${sy(6)}" text-anchor="middle" font-size="2" fill="#fff" opacity=".8">Pick a formation or a play</text>`; return; }
-  const t = state.t;
-  const editing = state.mode === "edit";
+  if (!f) { svg.innerHTML = fieldMarkup(fmt) + `<text x="0" y="${sy(6)}" text-anchor="middle" font-size="2" fill="#fff" opacity=".8">Pick a formation or a play</text>`; return; }
+  svg.innerHTML = playMarkup(f, play, state.t, { editing: state.mode === "edit", ghost: ghostFormation(f) });
+}
+/** The field, routes, players and ball for one play at time t. Used on screen and for printing. */
+function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } = {}) {
+  const fmt = f.format;
+  let s = fieldMarkup(fmt, ink);
   // End zone (plays that go for the TD)
   if (play?.goal) {
     const W2 = WIDTH[fmt] / 2, gy = play.goal;
-    s += `<rect x="${-W2}" y="0" width="${WIDTH[fmt]}" height="${sy(gy)}" fill="#1d4ed8" opacity=".38"/>`;
-    s += `<line x1="${-W2}" x2="${W2}" y1="${sy(gy)}" y2="${sy(gy)}" stroke="#fff" stroke-width="0.45"/>`;
-    s += `<text x="0" y="${sy(gy + Math.min(5, (TOP - gy) / 2)) + 0.8}" text-anchor="middle" font-size="2.4" font-weight="900" fill="#fff" opacity=".85" letter-spacing="0.4">END ZONE</text>`;
+    s += `<rect x="${-W2}" y="0" width="${WIDTH[fmt]}" height="${sy(gy)}" fill="${ink ? "#dbeafe" : "#1d4ed8"}" opacity="${ink ? 1 : 0.38}"/>`;
+    s += `<line x1="${-W2}" x2="${W2}" y1="${sy(gy)}" y2="${sy(gy)}" stroke="${ink ? "#1e3a8a" : "#fff"}" stroke-width="0.45"/>`;
+    s += `<text x="0" y="${sy(gy + Math.min(5, (TOP - gy) / 2)) + 0.8}" text-anchor="middle" font-size="2.4" font-weight="900" fill="${ink ? "#1e3a8a" : "#fff"}" opacity=".85" letter-spacing="0.4">END ZONE</text>`;
   }
-  const g = ghostFormation(f);
+  const g = ghost;
   if (g) for (const sp of g.spots) {
-    s += `<g opacity=".5"><circle cx="${sp.x}" cy="${sy(sp.y)}" r="0.85" fill="none" stroke="#fff" stroke-width="0.16" stroke-dasharray="0.3 0.25"/><text x="${sp.x}" y="${sy(sp.y) + 0.32}" font-size="0.75" text-anchor="middle" fill="#fff" font-weight="700">${esc(sp.pos)}</text></g>`;
+    const gc = ink ? "#6b7280" : "#fff";
+    s += `<g opacity=".5"><circle cx="${sp.x}" cy="${sy(sp.y)}" r="0.85" fill="none" stroke="${gc}" stroke-width="0.16" stroke-dasharray="0.3 0.25"/><text x="${sp.x}" y="${sy(sp.y) + 0.32}" font-size="0.75" text-anchor="middle" fill="${gc}" font-weight="700">${esc(sp.pos)}</text></g>`;
   }
   // routes
   for (const sp of f.spots) {
     const path = play?.paths?.[sp.pos];
     if (!path?.pts?.length) continue;
     const pts = routePts(sp, path);
-    const col = path.color && path.color !== "#ffffff" ? path.color : COLOR[role(sp.pos, f.format)];
+    let col = path.color && path.color !== "#ffffff" ? path.color : COLOR[role(sp.pos, f.format)];
+    if (ink) col = inkColor(col);
     const sel = editing && state.selPos === sp.pos;
     const dash = DASH[path.dash || "solid"];
     s += `<polyline points="${pts.map((p) => `${p.x},${sy(p.y)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${sel ? 0.34 : 0.24}" stroke-linejoin="round" stroke-linecap="round" opacity="${t > 0 && !editing ? 0.45 : 0.95}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
@@ -670,14 +726,14 @@ function draw() {
     const path = play?.paths?.[sp.pos];
     const p = posAt(sp, path, f.format, t, play?.snap || 0);
     const off = f.side === "O", sel = editing && state.selPos === sp.pos;
-    const fill = path?.color || (off ? "#ffffff" : "#dc2626"), ink = textOn(fill);
+    const fill = path?.color || (off ? "#ffffff" : "#dc2626"), txt = textOn(fill);
     const label = nameFor(f, sp.pos), fs = label.length > 3 ? 0.62 : 0.8;
-    const stroke = sel ? "var(--gold)" : ink === "#ffffff" ? "#ffffff" : "#0b1220";
+    const stroke = sel ? "var(--gold)" : txt === "#ffffff" && !ink ? "#ffffff" : "#0b1220";
     const shape = path?.star
       ? `<polygon points="${starPoints(p.x, sy(p.y), 1.55)}" fill="${fill}" stroke="${stroke}" stroke-width="${sel ? 0.3 : 0.14}" stroke-linejoin="round"/>`
       : `<circle cx="${p.x}" cy="${sy(p.y)}" r="1" fill="${fill}" stroke="${stroke}" stroke-width="${sel ? 0.32 : 0.14}"/>`;
     s += `<g data-pl="${esc(sp.pos)}" style="cursor:${editing ? "pointer" : "default"}">${shape}
-      <text x="${p.x}" y="${sy(p.y) + fs * 0.36 + (path?.star ? 0.12 : 0)}" font-size="${path?.star ? fs * 0.85 : fs}" text-anchor="middle" font-weight="800" fill="${ink}" style="pointer-events:none">${esc(label)}</text></g>`;
+      <text x="${p.x}" y="${sy(p.y) + fs * 0.36 + (path?.star ? 0.12 : 0)}" font-size="${path?.star ? fs * 0.85 : fs}" text-anchor="middle" font-weight="800" fill="${txt}" style="pointer-events:none">${esc(label)}</text></g>`;
   }
   // ball
   const ball = ballAt(play, f, t);
@@ -692,7 +748,7 @@ function draw() {
     const label = t < snapT ? "MOTION…" : t < snapT + 0.7 ? "SNAP!" : "";
     if (label) s += `<text x="0" y="${sy(-9.3)}" text-anchor="middle" font-size="1.6" font-weight="900" fill="${label === "SNAP!" ? "#facc15" : "#fff"}" stroke="#0b1220" stroke-width="0.08" paint-order="stroke">${label}</text>`;
   }
-  svg.innerHTML = s;
+  return s;
 }
 
 // ---------------------------------------------------------------- playback
@@ -1051,6 +1107,58 @@ $("#roster-rows").addEventListener("click", (e) => {
   book.formations.forEach((f) => { for (const pos in f.lineup || {}) if (f.lineup[pos] === b.dataset.delkid) delete f.lineup[pos]; });
   save(); renderRoster();
 });
+// ---------------------------------------------------------------- print / PDF
+function allPlaysSorted() {
+  const fo = { 5: 0, 7: 1, 11: 2 };
+  return book.plays.filter((p) => formationById(p.formationId)).sort((a, b) => {
+    const fa = formationById(a.formationId), fb = formationById(b.formationId);
+    return fo[fa.format] - fo[fb.format] || (fa.side === "O" ? 0 : 1) - (fb.side === "O" ? 0 : 1) || fa.name.localeCompare(fb.name) || a.name.localeCompare(b.name);
+  });
+}
+function printWhat() { return document.querySelector('input[name="pwhat"]:checked').value; }
+$("#btn-print").onclick = () => {
+  const p = currentPlay(), list = visiblePlays();
+  $("#pw-one").textContent = p ? `This play: ${p.name}${state.flip ? " (flipped)" : ""}` : "This play (pick a play first)";
+  document.querySelector('input[name="pwhat"][value="one"]').disabled = !p;
+  $("#pw-list").textContent = `Plays in the list (${list.length})${state.pkg !== "all" ? `: ${book.packages.find((k) => k.id === state.pkg)?.name || ""}` : ""}`;
+  $("#pw-all").textContent = `Whole playbook (${book.plays.length} plays)`;
+  if (!p) document.querySelector('input[name="pwhat"][value="list"]').checked = true;
+  $("#printdlg").showModal();
+};
+$("#print-close").onclick = () => $("#printdlg").close();
+$("#pper").onclick = (e) => { const b = e.target.closest("button"); if (b) setSeg($("#pper"), b.dataset.v); };
+$("#print-go").onclick = () => {
+  const what = printWhat();
+  const per = +($("#pper").querySelector('[aria-pressed="true"]')?.dataset.v || 2);
+  const ink = $("#pink").checked, notes = $("#pnotes").checked, showD = $("#pghost").checked;
+  let plays = what === "one" ? [currentPlay()].filter(Boolean) : what === "list" ? visiblePlays() : allPlaysSorted();
+  if (!plays.length) { alert("No plays to print."); return; }
+  const flipOne = what === "one" && state.flip;
+  const grid = { 1: [1, 1], 2: [1, 2], 4: [2, 2], 6: [2, 3] }[per];
+  const tag = (p, f) => `${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"} · ${esc(f.name)} · ${p.type}${p.snap ? " · motion" : ""}`;
+  let html = "";
+  if (plays.length > 1) {
+    const title = what === "list" && state.pkg !== "all" ? book.packages.find((k) => k.id === state.pkg)?.name : what === "all" ? "Playbook" : "Plays";
+    html += `<section class="ppage pindex"><div><h1>NXT ${esc(title || "Plays")}</h1><p>${plays.length} plays · printed ${new Date().toLocaleDateString()}</p><ol>${plays.map((p) => { const f = formationById(p.formationId); return `<li><b>${esc(p.name)}</b> <span>${f.format}v${f.format} · ${esc(f.name)}</span></li>`; }).join("")}</ol></div></section>`;
+  }
+  for (let i = 0; i < plays.length; i += per) {
+    html += `<section class="ppage" style="grid-template-columns:repeat(${grid[0]},1fr);grid-template-rows:repeat(${grid[1]},minmax(0,1fr))">`;
+    plays.slice(i, i + per).forEach((p0, j) => {
+      let f = formationById(p0.formationId), p = p0;
+      if (flipOne) { f = mirrorF(f); p = mirrorP(p); }
+      const W = WIDTH[f.format];
+      const other = book.formations.find((g) => g.format === f.format && g.side !== f.side);
+      const ghost = showD && other ? (flipOne ? mirrorF(other) : other) : null;
+      html += `<div class="pcard"><div class="ph">${plays.length > 1 ? `<span class="pnum">${i + j + 1}</span>` : ""}<span class="pn">${esc(p.name)}${flipOne ? " (flipped)" : ""}</span><span class="pt">${tag(p, f)}</span></div>
+        <svg viewBox="${-W / 2 - 1.5} 0 ${W + 3} ${TOP - BOTTOM}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">${playMarkup(f, p, 0, { ink, ghost })}</svg>
+        ${notes && p.notes ? `<div class="pnote">${esc(p.notes)}</div>` : ""}</div>`;
+    });
+    html += `</section>`;
+  }
+  $("#printarea").innerHTML = html;
+  $("#printdlg").close();
+  setTimeout(() => window.print(), 50);
+};
 $("#btn-export").onclick = () => {
   const blob = new Blob([JSON.stringify(book, null, 2)], { type: "application/json" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `nxt-playbook-${new Date().toISOString().slice(0, 10)}.json`; a.click();
