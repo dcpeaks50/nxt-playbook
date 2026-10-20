@@ -350,7 +350,7 @@ function samplePlaybook() {
   const packages = [
     { id: "pk_open", name: "Opening script", playIds: ["p11dive", "p11bubble", "p11boot", "p7slant", "p7jet", "p5mesh", "p5sweep"] },
     { id: "pk_xp", name: "Extra point", playIds: ["p11xp", "p5xp", "p7slant"] },
-    { id: "pk_man", name: "vs Man", playIds: ["p11boot", "p5mesh", "p7slant"] },
+    { id: "pk_man", name: "vs Man", playIds: ["p11boot", "p5mesh", "p7slant", "p7hitchgo"] },
     { id: "pk_zone", name: "vs Zone", playIds: ["p11verts", "p7smash", "p7verts", "p5flood"] },
     { id: "pk_trick", name: "Trick plays", playIds: ["p11hbpass", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p5hook"] },
   ];
@@ -421,6 +421,12 @@ function coachPlays() {
       X: r([[14.5, 1.2], [15.5, 3], [16.5, 18]], { speed: 6.3, star: true }),
     }, [{ t: 0.7, kind: "handoff", to: "HB" }, { t: 2.4, kind: "pass", to: "X" }],
       "Looks like a sweep right. X sells a block for a step, then goes deep. HB pulls up and throws it to X over the top. Y and Z run deep to clear out the safety and corner.", { goal: 14 }),
+    P("p7hitchgo", "Slot X 49 (Hitch & Go)", "f7slot", "pass", {
+      C: blk(0, -1.8), LG: blk(-2.4, -1.8), RG: blk(2.4, -1.8), QB: r([[0, -6.2], [-0.4, -5.9]], { speed: 3 }),
+      X: r([[-14, 5.5], [-13.6, 4.6], [-14.2, 5.6], [-15, 12], [-15.5, 20]], { speed: 6.3, star: true }),
+      Y: r([[8, 5], [13, 5]], { speed: 6.3 }), RB: r([[4, -4], [7, -1]], { speed: 6 }),
+    }, [{ t: 2.3, kind: "pass", to: "X" }],
+      "X runs a 4 (hitch) and turns back like he's catching it. QB pump fakes the hitch. When the corner jumps it, X takes off on a 9 and the QB throws it deep. Y's out holds the safety down; RB checks to the flat.", { goal: 14 }),
   ];
   return { formations, plays };
 }
@@ -467,6 +473,13 @@ if (book.version < 6) {
   const trick = book.packages.find((k) => k.id === "pk_trick");
   if (trick) for (const id of ["p7revfake", "p7hbpass"]) if (!trick.playIds.includes(id)) trick.playIds.push(id);
   book.version = 6;
+}
+// v7: Slot X 49 (Hitch & Go), in the vs Man package.
+if (book.version < 7) {
+  if (!book.plays.some((q) => q.id === "p7hitchgo")) book.plays.push(coachPlays().plays.find((p) => p.id === "p7hitchgo"));
+  const man = book.packages.find((k) => k.id === "pk_man");
+  if (man && !man.playIds.includes("p7hitchgo")) man.playIds.push("p7hitchgo");
+  book.version = 7;
 }
 const prefs = store.get(PREFS, {});
 const state = {
