@@ -84,6 +84,10 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .dlg-h h2{margin:0;font-size:18px}
 .dlg-b{padding:14px 16px;max-height:65vh;overflow:auto}
 .roster-row{display:grid;grid-template-columns:76px 1fr auto;gap:8px;margin-bottom:8px}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);padding:0}
+.sw[aria-pressed="true"]{outline:3px solid var(--gold);outline-offset:1px}
+.box .seg button{padding:5px 10px}
 </style>
 </head>
 <body>
@@ -207,15 +211,15 @@ function samplePlaybook() {
       TE: r([[6.5, 1]], { end: "block" }), X: r([[-17, 9]]), Z: r([[15, 9]]),
     }, [{ t: 0.65, kind: "handoff", to: "TB" }], "Quick hit through the right A/B gap. FB leads and takes the linebacker."),
     P("p11toss", "Toss Sweep Left", "f11i", "run", {
-      ...fire(1.4, { LT: -1.5, LG: -1 }), QB: r([[-0.6, -2.4]], { speed: 3 }), TB: r([[-2.5, -6.8], [-9, -6], [-14, -2.5], [-15.5, 2], [-15.5, 14]], { speed: 6.6 }),
+      ...fire(1.4, { LT: -1.5, LG: -1 }), QB: r([[-0.6, -2.4]], { speed: 3 }), TB: r([[-2.5, -6.8], [-9, -6], [-14, -2.5], [-15.5, 2], [-15.5, 14]], { speed: 6.6, curve: true }),
       FB: r([[-6, -3.6], [-11, -1], [-13.5, 1.5]], { end: "block" }), X: r([[-14.5, 2.5]], { end: "block" }), TE: r([[7, 1.2]], { end: "block" }), Z: r([[15, 9]]),
     }, [{ t: 0.45, kind: "pitch", to: "TB" }], "Pitch it wide. FB and X seal the edge; TB gets outside and turns up."),
     P("p11boot", "PA Boot Right", "f11i", "pass", {
-      ...pro(), QB: r([[0.8, -3.4], [5, -5], [9, -4.4]], { speed: 4.8 }), TB: r([[-0.5, -3.4], [-3, 0]]), FB: r([[3, -3], [7, -1.2]], { end: "block" }),
+      ...pro(), QB: r([[0.8, -3.4], [5, -5], [9, -4.4]], { speed: 4.8, curve: true }), TB: r([[-0.5, -3.4], [-3, 0]]), FB: r([[3, -3], [7, -1.2]], { end: "block" }),
       TE: r([[6, 1.2], [6.5, 3.5], [13, 5.5]]), Z: r([[15, 9], [9, 17]]), X: r([[-17, 9], [-3, 13]]),
     }, [{ t: 2.5, kind: "pass", to: "TE" }], "Fake the dive, QB rolls right. Read TE in the flat, then Z on the post."),
     P("p11bubble", "Bubble Screen", "f11t", "pass", {
-      ...pro(), QB: r([[0, -5.6]], { speed: 3 }), Y: r([[9, -3], [12.5, -3.2], [14.5, 1.5], [14.5, 12]], { speed: 6.6 }),
+      ...pro(), QB: r([[0, -5.6]], { speed: 3 }), Y: r([[9, -3], [12.5, -3.2], [14.5, 1.5], [14.5, 12]], { speed: 6.6, curve: true }),
       H: r([[11.5, 1.8]], { end: "block" }), Z: r([[16, 2.6]], { end: "block" }), X: r([[-17, 16]]), RB: r([[-1.2, -3]], { end: "block" }),
     }, [{ t: 0.8, kind: "pass", to: "Y" }], "Throw it fast. H and Z block the two defenders in front of them."),
     P("p11verts", "Four Verts", "f11t", "pass", {
@@ -254,7 +258,7 @@ function samplePlaybook() {
       X: r([[-16, 20]]), H: r([[-9, 4], [-6, 20]]), Y: r([[9, 4], [6, 20]]), Z: r([[16, 20]]),
     }, [{ t: 2.5, kind: "pass", to: "Y" }], "All four go deep; hit the open seam."),
     P("p7jet", "Jet Sweep", "f7s", "run", {
-      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.3, -4.3]], { speed: 3 }), H: r([[-6, -2.3], [0, -3.6], [8, -2.5], [15, 2], [15, 14]], { speed: 7 }),
+      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.3, -4.3]], { speed: 3 }), H: r([[-6, -2.3], [0, -3.6], [8, -2.5], [15, 2], [15, 14]], { speed: 7, curve: true }),
       RB: r([[-3.5, -3], [-5, 0]]), Y: r([[10, 2]], { end: "block" }), Z: r([[17, 3.5]], { end: "block" }), X: r([[-16, 9]]),
     }, [{ t: 1.35, kind: "handoff", to: "H" }], "H comes in full speed; QB hands it off on the run. Y and Z block the edge."),
     P("p7smash", "Bunch Smash", "f7b", "pass", {
@@ -310,6 +314,14 @@ function samplePlaybook() {
 // ---------------------------------------------------------------- state
 let book = store.get(KEY, null);
 if (!book || !Array.isArray(book.plays)) book = samplePlaybook();
+// v2: plays show the ball carrier as a star. Give older playbooks one: whoever gets the ball last.
+if ((book.version || 1) < 2) {
+  for (const p of book.plays) {
+    const last = (p.events || []).slice().sort((a, b) => a.t - b.t).at(-1);
+    if (last && !Object.values(p.paths || {}).some((q) => q.star)) (p.paths[last.to] ||= { pts: [] }).star = true;
+  }
+  book.version = 2;
+}
 const prefs = store.get(PREFS, {});
 const state = {
   format: prefs.format || "11", side: prefs.side || "all", formationId: null, type: "all", pkg: "all",
@@ -340,27 +352,44 @@ const pathSpeed = (path, pos, fmt) => path?.speed || SPEED[role(pos, fmt)];
 const pathEnd = (path, pos, fmt) => path?.end || (role(pos, fmt) === "line" ? "block" : "arrow");
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
+/** The line a player runs, from their spot through each point. Curved lines are smoothed through the points. */
+function routePts(spot, path) {
+  const raw = [{ x: spot.x, y: spot.y }, ...(path?.pts || []).map(([x, y]) => ({ x, y }))];
+  if (!path?.curve || raw.length < 3) return raw;
+  const out = [raw[0]];
+  for (let i = 0; i < raw.length - 1; i++) {
+    const p0 = raw[i - 1] || raw[i], p1 = raw[i], p2 = raw[i + 1], p3 = raw[i + 2] || p2;
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 }, c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    for (let k = 1; k <= 12; k++) {
+      const t = k / 12, u = 1 - t;
+      out.push({ x: u * u * u * p1.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p2.x, y: u * u * u * p1.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p2.y });
+    }
+  }
+  return out;
+}
 function posAt(spot, path, fmt, t) {
-  const pts = path?.pts || [];
-  if (!pts.length) return { x: spot.x, y: spot.y };
+  if (!path?.pts?.length) return { x: spot.x, y: spot.y };
   let tt = t - (path.delay || 0);
   if (tt <= 0) return { x: spot.x, y: spot.y };
-  const v = pathSpeed(path, spot.pos, fmt);
-  let a = { x: spot.x, y: spot.y };
-  for (const [x, y] of pts) {
-    const b = { x, y }, d = dist(a, b), dt = d / v;
+  const v = pathSpeed(path, spot.pos, fmt), pts = routePts(spot, path);
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dt = dist(a, b) / v;
     if (tt <= dt) return { x: a.x + (b.x - a.x) * (tt / dt || 0), y: a.y + (b.y - a.y) * (tt / dt || 0) };
-    tt -= dt; a = b;
+    tt -= dt;
   }
-  return a;
+  return pts[pts.length - 1];
 }
 function pathDuration(spot, path, fmt) {
-  const pts = path?.pts || [];
-  if (!pts.length) return 0;
-  let a = spot, L = 0;
-  for (const [x, y] of pts) { L += dist(a, { x, y }); a = { x, y }; }
+  if (!path?.pts?.length) return 0;
+  const pts = routePts(spot, path);
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += dist(pts[i - 1], pts[i]);
   return (path.delay || 0) + L / pathSpeed(path, spot.pos, fmt);
 }
+const DASH = { solid: "", dotted: "0.01 0.55", dashed: "0.9 0.55" };
+const PALETTE = ["#ffffff", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
+const textOn = (hex) => { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#0b1220" : "#ffffff"; };
+const starPoints = (cx, cy, R, r = R * 0.48) => Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, d = i % 2 ? r : R; return `${cx + d * Math.cos(a)},${cy + d * Math.sin(a)}`; }).join(" ");
 function playerPos(play, f, pos, t) {
   const spot = f.spots.find((s) => s.pos === pos);
   return spot ? posAt(spot, play?.paths?.[pos], f.format, t) : { x: 0, y: 0 };
@@ -467,22 +496,38 @@ function draw() {
   for (const sp of f.spots) {
     const path = play?.paths?.[sp.pos];
     if (!path?.pts?.length) continue;
-    const pts = [{ x: sp.x, y: sp.y }, ...path.pts.map(([x, y]) => ({ x, y }))];
-    const col = COLOR[role(sp.pos, f.format)];
+    const pts = routePts(sp, path);
+    const col = path.color && path.color !== "#ffffff" ? path.color : COLOR[role(sp.pos, f.format)];
     const sel = editing && state.selPos === sp.pos;
-    s += `<polyline points="${pts.map((p) => `${p.x},${sy(p.y)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${sel ? 0.34 : 0.22}" stroke-linejoin="round" opacity="${t > 0 && !editing ? 0.45 : 0.95}" stroke-dasharray="${role(sp.pos, f.format) === "line" ? "" : ""}"/>`;
+    const dash = DASH[path.dash || "solid"];
+    s += `<polyline points="${pts.map((p) => `${p.x},${sy(p.y)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${sel ? 0.34 : 0.24}" stroke-linejoin="round" stroke-linecap="round" opacity="${t > 0 && !editing ? 0.45 : 0.95}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
     const a = pts[pts.length - 2], b = pts[pts.length - 1];
     s += pathEnd(path, sp.pos, f.format) === "block" ? blockEnd(a, b, col) : arrowHead(a, b, col);
     if (editing && state.editMode === "play" && sel) path.pts.forEach(([x, y], i) => { s += `<circle data-wp data-pos="${esc(sp.pos)}" data-i="${i}" cx="${x}" cy="${sy(y)}" r="0.55" fill="${col}" stroke="#111" stroke-width="0.12" style="cursor:grab"/>`; });
   }
+  // the line being drawn right now (click-and-drag)
+  if (editing && drag?.kind === "draw" && drag.moved && drag.cur) {
+    const sp = f.spots.find((q) => q.pos === drag.pos), path = play?.paths?.[drag.pos];
+    const from = sp ? routePts(sp, path).at(-1) : null;
+    if (from) {
+      const col = path?.color && path.color !== "#ffffff" ? path.color : COLOR[role(drag.pos, f.format)];
+      s += `<line x1="${from.x}" y1="${sy(from.y)}" x2="${drag.cur.x}" y2="${sy(drag.cur.y)}" stroke="${col}" stroke-width="0.24" stroke-linecap="round" opacity=".8"${DASH[path?.dash || "solid"] ? ` stroke-dasharray="${DASH[path.dash]}"` : ""}/>`;
+      s += (path?.end || pathEnd(path, drag.pos, f.format)) === "block" ? blockEnd(from, drag.cur, col) : arrowHead(from, drag.cur, col);
+    }
+  }
   // players
   for (const sp of f.spots) {
-    const p = posAt(sp, play?.paths?.[sp.pos], f.format, t);
+    const path = play?.paths?.[sp.pos];
+    const p = posAt(sp, path, f.format, t);
     const off = f.side === "O", sel = editing && state.selPos === sp.pos;
+    const fill = path?.color || (off ? "#ffffff" : "#dc2626"), ink = textOn(fill);
     const label = nameFor(f, sp.pos), fs = label.length > 3 ? 0.62 : 0.8;
-    s += `<g data-pl="${esc(sp.pos)}" style="cursor:${editing ? "pointer" : "default"}">
-      <circle cx="${p.x}" cy="${sy(p.y)}" r="1" fill="${off ? "#ffffff" : "#dc2626"}" stroke="${sel ? "var(--gold)" : off ? "#0b1220" : "#fff"}" stroke-width="${sel ? 0.32 : 0.14}"/>
-      <text x="${p.x}" y="${sy(p.y) + fs * 0.36}" font-size="${fs}" text-anchor="middle" font-weight="800" fill="${off ? "#0b1220" : "#fff"}" style="pointer-events:none">${esc(label)}</text></g>`;
+    const stroke = sel ? "var(--gold)" : ink === "#ffffff" ? "#ffffff" : "#0b1220";
+    const shape = path?.star
+      ? `<polygon points="${starPoints(p.x, sy(p.y), 1.55)}" fill="${fill}" stroke="${stroke}" stroke-width="${sel ? 0.3 : 0.14}" stroke-linejoin="round"/>`
+      : `<circle cx="${p.x}" cy="${sy(p.y)}" r="1" fill="${fill}" stroke="${stroke}" stroke-width="${sel ? 0.32 : 0.14}"/>`;
+    s += `<g data-pl="${esc(sp.pos)}" style="cursor:${editing ? "pointer" : "default"}">${shape}
+      <text x="${p.x}" y="${sy(p.y) + fs * 0.36 + (path?.star ? 0.12 : 0)}" font-size="${path?.star ? fs * 0.85 : fs}" text-anchor="middle" font-weight="800" fill="${ink}" style="pointer-events:none">${esc(label)}</text></g>`;
   }
   // ball
   const ball = ballAt(play, f, t);
@@ -655,7 +700,7 @@ function renderTitle() {
   $("#btn-dupplay").hidden = $("#btn-delplay").hidden = !p;
   $("#edit-hint").textContent = state.editMode === "formation"
     ? "Drag players to set the formation. Every play in this formation starts from here."
-    : state.selPos ? `Click the field to add points to ${state.selPos}'s path. Drag points to move them.` : "Tap a player, then click the field to draw their path.";
+    : state.selPos ? `Drag from ${state.selPos} to draw their line, one piece at a time (or click to add a point). Drag the dots to reshape it.` : "Press on a player and drag to draw their line.";
 }
 function renderDetails() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
@@ -668,11 +713,16 @@ function renderDetails() {
   }
   if (editing && p && state.editMode === "play") {
     const sel = state.selPos, path = sel ? p.paths[sel] : null;
+    const opt = (name, cur, items) => `<div class="seg" data-opt="${name}">${items.map(([v, label]) => `<button data-v="${v}" aria-pressed="${String(cur) === v}">${label}</button>`).join("")}</div>`;
     h += `<div class="box"><h3>${sel ? `Player: ${esc(sel)}` : "Player"}</h3>${sel ? `
+      <div class="row"><label>Line</label>${opt("curve", path?.curve ? "1" : "0", [["0", "Straight"], ["1", "Curved"]])}</div>
+      <div class="row"><label>Style</label>${opt("dash", path?.dash || "solid", [["solid", "Solid"], ["dotted", "Dotted"], ["dashed", "Dashed"]])}</div>
+      <div class="row"><label>End</label>${opt("end", pathEnd(path, sel, f.format), [["arrow", "→ Running"], ["block", "⊥ Blocking"]])}</div>
+      <div class="row"><label>Color</label><span class="swatches">${PALETTE.map((c) => `<button class="sw" data-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${path?.color === c}"></button>`).join("")}<button class="btn sm" data-color="">Default</button></span></div>
+      <div class="row"><label>Ball</label><button class="btn sm" id="pstar" aria-pressed="${!!path?.star}">${path?.star ? "★ Gets the ball (on)" : "☆ Gets the ball"}</button></div>
       <div class="row"><label>Speed</label><input type="range" id="pspeed" min="2" max="9" step="0.5" value="${pathSpeed(path, sel, f.format)}"><span id="pspeed-v">${pathSpeed(path, sel, f.format)} yd/s</span></div>
       <div class="row"><label>Wait</label><input type="range" id="pdelay" min="0" max="3" step="0.1" value="${path?.delay || 0}"><span id="pdelay-v">${(path?.delay || 0).toFixed(1)} s</span></div>
-      <div class="row"><label>End</label><select id="pend"><option value="arrow" ${pathEnd(path, sel, f.format) === "arrow" ? "selected" : ""}>Arrow (route/run)</option><option value="block" ${pathEnd(path, sel, f.format) === "block" ? "selected" : ""}>Block (⊥)</option></select></div>
-      <div class="row"><button class="btn sm" id="pundo">Undo last point</button><button class="btn sm danger" id="pclear">Clear path</button></div>` : `<p class="hint">Tap a player on the field.</p>`}</div>`;
+      <div class="row"><button class="btn sm" id="pundo">Undo last point</button><button class="btn sm danger" id="pclear">Clear line</button></div>` : `<p class="hint">Tap a player on the field, or press on a player and drag to draw their line.</p>`}</div>`;
     if (f.side === "O") {
       const evs = (p.events || []).slice().sort((a, b) => a.t - b.t);
       h += `<div class="box"><h3>The ball</h3><ul class="events">${evs.map((e, i) => `<li><span class="tag">${e.t.toFixed(1)}s</span> ${e.kind} to <b>${esc(e.to)}</b> <button class="btn sm danger" data-delev="${p.events.indexOf(e)}">✕</button></li>`).join("") || `<li class="hint">Snaps to the QB. Add a handoff, pitch or pass.</li>`}</ul>
@@ -704,7 +754,24 @@ $("#details").addEventListener("change", (e) => {
 $("#details").addEventListener("click", (e) => {
   const p = currentPlay(); if (!p) return;
   if (e.target.id === "pundo" && state.selPos) { p.paths[state.selPos]?.pts.pop(); save(); setT(state.t); }
-  if (e.target.id === "pclear" && state.selPos) { delete p.paths[state.selPos]; save(); setT(state.t); renderDetails(); }
+  if (e.target.id === "pclear" && state.selPos && p.paths[state.selPos]) { p.paths[state.selPos].pts = []; save(); setT(state.t); renderDetails(); }
+  if (state.selPos) {
+    const optBtn = e.target.closest("[data-opt] button"), sw = e.target.closest("[data-color]");
+    if (optBtn || sw || e.target.id === "pstar") {
+      const path = (p.paths[state.selPos] ||= { pts: [] });
+      if (optBtn) {
+        const k = optBtn.parentElement.dataset.opt, v = optBtn.dataset.v;
+        if (k === "curve") path.curve = v === "1"; else path[k] = v;
+      }
+      if (sw) { if (sw.dataset.color) path.color = sw.dataset.color; else delete path.color; }
+      if (e.target.id === "pstar") {
+        const on = !path.star;
+        for (const q of Object.values(p.paths)) delete q.star; // one ball carrier per play
+        if (on) path.star = true;
+      }
+      save(); setT(state.t); renderDetails();
+    }
+  }
   if (e.target.id === "evadd") { (p.events ||= []).push({ t: Math.round(state.t * 10) / 10, kind: $("#evkind").value, to: $("#evto").value }); save(); setT(state.t); renderDetails(); }
   const de = e.target.closest("[data-delev]");
   if (de) { p.events.splice(+de.dataset.delev, 1); save(); setT(state.t); renderDetails(); }
@@ -727,22 +794,42 @@ svg.addEventListener("pointerdown", (e) => {
     return;
   }
   if (!p) return;
-  if (wp) { drag = { kind: "wp", pos: wp.dataset.pos, i: +wp.dataset.i }; svg.setPointerCapture(e.pointerId); return; }
-  if (pl) { state.selPos = pl.dataset.pl; renderTitle(); renderDetails(); draw(); return; }
-  if (state.selPos) {
-    const path = (p.paths[state.selPos] ||= { pts: [] });
-    path.pts.push([snap(pt.x), snap(pt.y)]); save(); setT(state.t);
-  }
-});
-svg.addEventListener("pointermove", (e) => {
-  if (!drag) return;
-  const f = currentFormation(), p = currentPlay(), pt = toField(e), W = WIDTH[f.format] / 2;
-  const x = Math.max(-W, Math.min(W, snap(pt.x))), y = Math.max(BOTTOM + 1, Math.min(TOP - 1, snap(pt.y)));
-  if (drag.kind === "spot") { const s = f.spots.find((q) => q.pos === drag.pos); if (s) { s.x = x; s.y = y; } }
-  if (drag.kind === "wp" && p) { const pts = p.paths[drag.pos]?.pts; if (pts?.[drag.i]) pts[drag.i] = [x, y]; }
+  // Middle points reshape the line; the end point keeps drawing from there.
+  if (wp && +wp.dataset.i < (p.paths[wp.dataset.pos]?.pts.length || 0) - 1) { drag = { kind: "wp", pos: wp.dataset.pos, i: +wp.dataset.i }; svg.setPointerCapture(e.pointerId); return; }
+  // Press on a player (or anywhere once a player is picked) and drag to draw the next piece of their line.
+  // A plain click on a player just picks them; a plain click on the field adds a point there.
+  const pos = pl ? pl.dataset.pl : state.selPos;
+  if (!pos) return;
+  if (pl && state.selPos !== pos) { state.selPos = pos; renderTitle(); renderDetails(); }
+  drag = { kind: "draw", pos, start: pt, cur: null, moved: false, onPlayer: !!pl };
+  svg.setPointerCapture(e.pointerId);
   draw();
 });
-const endDrag = () => { if (drag) { drag = null; save(); setT(state.t); } };
+const clampPt = (f, pt) => { const W = WIDTH[f.format] / 2; return { x: Math.max(-W, Math.min(W, snap(pt.x))), y: Math.max(BOTTOM + 1, Math.min(TOP - 1, snap(pt.y))) }; };
+svg.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const f = currentFormation(), p = currentPlay(), { x, y } = clampPt(f, toField(e));
+  if (drag.kind === "spot") { const s = f.spots.find((q) => q.pos === drag.pos); if (s) { s.x = x; s.y = y; } }
+  if (drag.kind === "wp" && p) { const pts = p.paths[drag.pos]?.pts; if (pts?.[drag.i]) pts[drag.i] = [x, y]; }
+  if (drag.kind === "draw") { drag.cur = { x, y }; if (dist(drag.start, drag.cur) > 0.75) drag.moved = true; }
+  draw();
+});
+const endDrag = (e) => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.kind === "draw") {
+    const p = currentPlay(), f = currentFormation();
+    // Dragged: the line ends where you let go. Clicked on the field: a point there. Clicked a player: just picked.
+    const end = d.moved ? d.cur : d.onPlayer ? null : clampPt(f, d.start);
+    if (p && end) {
+      const path = (p.paths[d.pos] ||= { pts: [] });
+      const last = routePts(f.spots.find((q) => q.pos === d.pos), path).at(-1);
+      if (dist(last, end) >= 0.5) path.pts.push([end.x, end.y]);
+    }
+    save(); setT(state.t); renderDetails(); return;
+  }
+  save(); setT(state.t);
+};
 svg.addEventListener("pointerup", endDrag);
 svg.addEventListener("pointercancel", endDrag);
 
