@@ -767,7 +767,7 @@ function undo() {
 
 // ---------------------------------------------------------------- the shared playbook (Cloudflare Worker + D1)
 // Everyone with the link reads and edits one playbook. This device keeps a copy so the site works offline.
-const API = "API_URL";
+const API = "https://nxt-playbook-api.nxtplaybook.workers.dev";
 const LOCAL_CHECKED = "nxt-local-checked-v1";
 const sync = { ready: false, rev: 0, timer: 0, saving: false, again: false, forceBackup: false, offline: false };
 function syncStatus(text, tone = "") { const el = document.getElementById("sync"); if (el) { el.textContent = text; el.dataset.tone = tone; } }

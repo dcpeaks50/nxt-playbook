@@ -1,0 +1,8 @@
+name = "nxt-playbook-api"
+main = "index.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nxt-playbook"
+database_id = "f6377304-30c8-4b6e-985c-c8d27d46cd62"
