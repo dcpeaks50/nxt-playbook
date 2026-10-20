@@ -460,9 +460,32 @@ function coachPlays() {
       Y: r([[8, 5], [13, 5]], { speed: 6.3 }), RB: r([[4, -4], [7, -1]], { speed: 6 }),
     }, [{ t: 2.3, kind: "pass", to: "X" }],
       "X runs a 4 (hitch) and turns back like he's catching it. QB pump fakes the hitch. When the corner jumps it, X takes off on a 9 and the QB throws it deep. Y's out holds the safety down; RB checks to the flat.", { goal: 14 }),
+    // Numbered calls: call side gets the numbers (outside receiver first, then slot); the backside runs a 9 unless tagged.
+    P("p7sr23", "Spread Right 23", "f7s", "pass", {
+      C: blk(0, 1), QB: r([[0, -6.5]], { speed: 3 }), RB: r([[-1.5, -3.2]], { end: "block" }),
+      Z: r([[16, 0.8], [12, 2.5], [8, 3.5]], { speed: 6.3, star: true }), Y: r([[9, 6], [14, 6]], { speed: 6.3 }),
+      X: r([[-16, 20]], { speed: 6.3 }), H: r([[-9, 4], [-7, 20]], { speed: 6.3 }),
+    }, [{ t: 1.2, kind: "pass", to: "Z" }],
+      "Call side is right: outside receiver (Z) runs a 2 (slant), slot (Y) runs a 3 (out). Backside runs 9s to clear out. Read: slant first, then the out."),
+    P("p7sl23", "Spread Left 23", "f7s", "pass", {
+      C: blk(0, 1), QB: r([[0, -6.5]], { speed: 3 }), RB: r([[1.5, -3.2]], { end: "block" }),
+      X: r([[-16, 0.8], [-12, 2.5], [-8, 3.5]], { speed: 6.3, star: true }), H: r([[-9, 6], [-14, 6]], { speed: 6.3 }),
+      Z: r([[16, 20]], { speed: 6.3 }), Y: r([[9, 4], [7, 20]], { speed: 6.3 }),
+    }, [{ t: 1.2, kind: "pass", to: "X" }],
+      "Call side is left: outside receiver (X) runs a 2 (slant), slot (H) runs a 3 (out). Backside runs 9s to clear out. Read: slant first, then the out."),
   ];
   return { formations, plays };
 }
+/** Play names lead with the formation so the call reads at a glance (only renamed if the coach hasn't renamed it). */
+const RENAMES = {
+  p11dive: ["Dive Right", "I-Form Dive Right"], p11toss: ["Toss Sweep Left", "I-Form Toss Left"], p11boot: ["PA Boot Right", "I-Form PA Boot Right"],
+  p11bubble: ["Bubble Screen", "Trips Right Bubble"], p11verts: ["Four Verts", "Trips Right Four Verts"], p11hbpass: ["Halfback Pass", "I-Form HB Pass"],
+  p11xp: ["Power Right (XP)", "Goal Line Power Right (XP)"], p11c2: ["Cover 2", "4-3 Cover 2"], p11c3: ["Cover 3", "4-3 Cover 3"], p11blitz: ["Cover 0 Blitz", "4-3 Cover 0 Blitz"],
+  p7slant: ["Slant-Flat", "Spread Slant-Flat"], p7verts: ["Four Verts", "Spread Four Verts"], p7jet: ["Jet Sweep", "Spread Jet Sweep"], p7smash: ["Bunch Smash", "Bunch Right Smash"],
+  p7c2: ["Cover 2", "Base Cover 2"], p7c1: ["Cover 1 Man", "Base Cover 1 Man"], p7ladder: ["Slot 4 Ladder", "Slot Right 4 Ladder"], p7hitchgo: ["Slot X 49 (Hitch & Go)", "Slot Right X 49 (Hitch & Go)"],
+  p5mesh: ["Mesh", "Spread Mesh"], p5flood: ["Flood Right", "Trips Right Flood"], p5sweep: ["Y Sweep", "Spread Y Sweep"], p5hook: ["Hook & Ladder", "Spread Hook & Ladder"],
+  p5xp: ["Quick Slant (XP)", "Spread Quick Slant (XP)"], p5c1: ["Cover 1 Man", "Base Cover 1 Man"], p5z: ["Zone (2 Deep)", "Base Zone (2 Deep)"],
+};
 
 // ---------------------------------------------------------------- state
 let book = store.get(KEY, null);
@@ -519,6 +542,15 @@ if (book.version < 8) {
   const lad = coachPlays().plays.find((p) => p.id === "p7ladder"), i = book.plays.findIndex((q) => q.id === "p7ladder");
   if (i >= 0) book.plays[i] = lad; else book.plays.push(lad);
   book.version = 8;
+}
+// v9: names lead with the formation; numbered calls Spread Right 23 / Spread Left 23.
+if (book.version < 9) {
+  for (const p of book.plays) { const r = RENAMES[p.id]; if (r && p.name === r[0]) p.name = r[1]; }
+  const cp = coachPlays();
+  for (const id of ["p7sr23", "p7sl23"]) if (!book.plays.some((q) => q.id === id)) book.plays.push(cp.plays.find((p) => p.id === id));
+  const open = book.packages.find((k) => k.id === "pk_open");
+  if (open && !open.playIds.includes("p7sr23")) open.playIds.splice(Math.min(3, open.playIds.length), 0, "p7sr23");
+  book.version = 9;
 }
 const prefs = store.get(PREFS, {});
 const state = {
