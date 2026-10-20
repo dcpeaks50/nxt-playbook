@@ -133,6 +133,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
         <button data-v="pos">Pos</button><button data-v="num">#</button><button data-v="name">Name</button>
       </div>
       <button class="btn" id="btn-ghost" aria-pressed="true">Opponent</button>
+      <button class="btn" id="btn-flip" aria-pressed="false" title="Show the play going the other direction">⇄ Flip</button>
       <button class="btn" id="btn-edit">Edit</button>
     </div>
     <div class="editbar" id="editbar" hidden>
@@ -143,6 +144,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <span id="edit-hint"></span>
       <span class="spacer"></span>
       <button class="btn sm" id="btn-dupplay">Duplicate play</button>
+      <button class="btn sm" id="btn-saveflip" title="Make a mirrored copy (Right ↔ Left)">Save flipped copy</button>
       <button class="btn sm danger" id="btn-delplay">Delete play</button>
       <button class="btn sm danger" id="btn-delform">Delete formation</button>
       <button class="btn sm primary" id="btn-done">Done</button>
@@ -307,7 +309,7 @@ function samplePlaybook() {
     { id: "pk_xp", name: "Extra point", playIds: ["p11xp", "p5xp", "p7slant"] },
     { id: "pk_man", name: "vs Man", playIds: ["p11boot", "p5mesh", "p7slant"] },
     { id: "pk_zone", name: "vs Zone", playIds: ["p11verts", "p7smash", "p7verts", "p5flood"] },
-    { id: "pk_trick", name: "Trick plays", playIds: ["p11hbpass", "p7rev", "p7ladder", "p5hook"] },
+    { id: "pk_trick", name: "Trick plays", playIds: ["p11hbpass", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p5hook"] },
   ];
   return { version: 1, roster: [], formations, plays, packages };
 }
@@ -332,7 +334,7 @@ function coachPlays() {
       FB: r([[3.5, -1.5], [2, 3], [-4, 7]], { speed: 6.8, end: "block" }),
       HB: r([[-0.8, -4.2], [4, -4.4], [7.5, -4.4]], { speed: 6 }),
       X: r([[12, -3.5], [6, -6], [0, -6.5], [-8, -5.5], [-12, -1], [-13, 5], [-12.5, 18]], { speed: 7, delay: 0.7, curve: true, star: true }),
-    }, [{ t: 0.55, kind: "handoff", to: "HB" }, { t: 1.95, kind: "handoff", to: "X" }],
+    }, [{ t: 0.7, kind: "handoff", to: "HB" }, { t: 1.95, kind: "handoff", to: "X" }],
       "Y runs a seam to pull the safety; Z goes deep to take the corner. FB gets upfield fast to block. HB takes the handoff running right and gives it back to X coming behind him. X takes it around the left side for the TD.", { goal: 14 }),
     P("p7spr", "Split Right", "f7split", "run", {
       ...lineRight, QB: r([[0.6, -4.8]], { speed: 3 }),
@@ -360,6 +362,22 @@ function coachPlays() {
       Y: r([[4, -2.6], [0, -2.8], [-3, -2.6], [-8, -0.5], [-11, 2.5], [-13.5, 4.8], [-15, 8], [-15.5, 18]], { speed: 6.5, curve: true, motion: true, star: true }),
     }, [{ t: 2, kind: "pass", to: "X" }, { t: 3.6, kind: "pitch", to: "Y" }],
       "Y goes in motion; snap as he gets just past the QB. X runs a 4 (hitch) and catches it. Y circles around behind X and takes the pitch to the end zone.", { snap: 1.4, goal: 14 }),
+    P("p7revfake", "Twins X Reverse Fake", "f7twins", "run", {
+      C: blk(0.5, 1.2), QB: r([[1, -4.6], [3.5, -3]], { speed: 3 }),
+      Y: r([[9, 4], [7, 19]], { speed: 6.3 }), Z: r([[-15, 20]], { speed: 6.3 }),
+      FB: r([[4.5, -2], [9.5, 0.5], [12.5, 3.5]], { speed: 6.5, end: "block" }),
+      HB: r([[-0.8, -4.2], [4, -4.4], [8, -4], [11.5, -1], [13, 3], [13, 18]], { speed: 6, curve: true, star: true }),
+      X: r([[12, -3.5], [6, -6], [0, -6.5], [-8, -5.5], [-12, -1], [-13, 5]], { speed: 7, delay: 0.7, curve: true, dash: "dotted" }),
+    }, [{ t: 0.7, kind: "handoff", to: "HB" }],
+      "Looks just like Twins X Reverse. HB fakes the handoff to X and keeps it, around the right side behind the FB. X sells the fake all the way (dotted line = no ball).", { goal: 14 }),
+    P("p7hbpass", "Twins HB Pass", "f7twins", "pass", {
+      C: blk(0.5, 1.2), QB: r([[1, -4.6], [3.5, -3]], { speed: 3 }),
+      Y: r([[9, 4], [7, 19]], { speed: 6.3 }), Z: r([[-15, 20]], { speed: 6.3 }),
+      FB: r([[4.5, -2], [9, 0], [11, 2.5]], { speed: 6.5, end: "block" }),
+      HB: r([[-0.8, -4.2], [4, -4.4], [7.5, -4.2], [9, -3.6]], { speed: 6 }),
+      X: r([[14.5, 1.2], [15.5, 3], [16.5, 18]], { speed: 6.3, star: true }),
+    }, [{ t: 0.7, kind: "handoff", to: "HB" }, { t: 2.4, kind: "pass", to: "X" }],
+      "Looks like a sweep right. X sells a block for a step, then goes deep. HB pulls up and throws it to X over the top. Y and Z run deep to clear out the safety and corner.", { goal: 14 }),
   ];
   return { formations, plays };
 }
@@ -398,6 +416,14 @@ if (book.version < 5) {
   const rev = cp.plays.find((p) => p.id === "p7rev"), i = book.plays.findIndex((q) => q.id === "p7rev");
   if (i >= 0) book.plays[i] = rev; else book.plays.push(rev);
   book.version = 5;
+}
+// v6: Twins X Reverse Fake and Twins HB Pass.
+if (book.version < 6) {
+  const cp = coachPlays();
+  for (const id of ["p7revfake", "p7hbpass"]) if (!book.plays.some((q) => q.id === id)) book.plays.push(cp.plays.find((p) => p.id === id));
+  const trick = book.packages.find((k) => k.id === "pk_trick");
+  if (trick) for (const id of ["p7revfake", "p7hbpass"]) if (!trick.playIds.includes(id)) trick.playIds.push(id);
+  book.version = 6;
 }
 const prefs = store.get(PREFS, {});
 const state = {
@@ -531,16 +557,28 @@ function playDuration(play, f) {
   if (!play || !f) return 0;
   let d = 0;
   for (const s of f.spots) d = Math.max(d, pathDuration(s, play.paths?.[s.pos], f.format, play.snap || 0));
-  for (const e of play.events || []) d = Math.max(d, e.t + 1);
+  // Keep the clock running until the ball is caught (long passes take a while to land).
+  for (const e of play.events || []) {
+    let end = e.t + 1;
+    if (e.kind === "pass" || e.kind === "pitch") for (let t = e.t; t < e.t + 4; t += 0.1) { const b = ballAt(play, f, t); if (b && !b.flying && t > e.t + 0.05) { end = t + 0.8; break; } }
+    d = Math.max(d, end);
+  }
   return Math.min(12, Math.max(3, d + 0.6));
 }
 
 // ---------------------------------------------------------------- drawing
 const svg = $("#field");
+// Flip: show a play mirrored left-to-right (view only; "Save flipped copy" makes it a real play).
+const mirrorF = (f) => f && { ...f, spots: f.spots.map((s) => ({ ...s, x: -s.x })) };
+const mirrorP = (p) => p && { ...p, paths: Object.fromEntries(Object.entries(p.paths || {}).map(([k, v]) => [k, { ...v, pts: (v.pts || []).map(([x, y]) => [-x, y]) }])) };
+const viewFormation = () => (state.flip ? mirrorF(currentFormation()) : currentFormation());
+const viewPlay = () => (state.flip ? mirrorP(currentPlay()) : currentPlay());
+const flipName = (name) => { const n = name.replace(/\b(Right|Left|right|left)\b/g, (w) => ({ Right: "Left", Left: "Right", right: "left", left: "right" }[w])); return n === name ? name + " (flipped)" : n; };
 function ghostFormation(f) {
   if (!state.ghost || !f) return null;
   const other = f.side === "O" ? "D" : "O";
-  return book.formations.find((g) => g.format === f.format && g.side === other) || null;
+  const g = book.formations.find((g) => g.format === f.format && g.side === other) || null;
+  return state.flip ? mirrorF(g) : g;
 }
 function nameFor(f, pos) {
   const id = f.lineup?.[pos];
@@ -579,7 +617,7 @@ function blockEnd(a, b, color) {
   return `<line x1="${b.x - Math.cos(ang) * w}" y1="${sy(b.y) - Math.sin(ang) * w}" x2="${b.x + Math.cos(ang) * w}" y2="${sy(b.y) + Math.sin(ang) * w}" stroke="${color}" stroke-width="0.32" stroke-linecap="round"/>`;
 }
 function draw() {
-  const f = currentFormation(), play = currentPlay();
+  const f = viewFormation(), play = viewPlay();
   const fmt = f?.format || state.format, W = WIDTH[fmt];
   // Phones: zoom to the part of the field the play uses so the players aren't tiny (not while editing).
   let x0 = -W / 2 - 1.5, x1 = W / 2 + 1.5;
@@ -785,7 +823,23 @@ $("#btn-dupform").onclick = () => {
 };
 
 // ---------------------------------------------------------------- details / editing
-function enterEdit(mode) { setPlaying(false); state.mode = "edit"; state.editMode = mode; state.t = 0; }
+function enterEdit(mode) { setPlaying(false); state.mode = "edit"; state.editMode = mode; state.t = 0; state.flip = false; }
+$("#btn-flip").onclick = () => {
+  if (state.mode === "edit") return; // edit the real play; use "Save flipped copy" for a mirrored one
+  state.flip = !state.flip; renderTitle(); setT(state.t);
+};
+$("#btn-saveflip").onclick = () => {
+  const p = currentPlay(), f = currentFormation(); if (!p || !f) return;
+  const mf = mirrorF(f);
+  const same = (a, b) => a.spots.length === b.spots.length && a.spots.every((s) => b.spots.some((t) => t.pos === s.pos && Math.abs(t.x - s.x) < 0.01 && Math.abs(t.y - s.y) < 0.01));
+  // Symmetric formations (like Gun Split) keep the same formation; others get a mirrored one, made once.
+  let target = same(mf, f) ? f : book.formations.find((x) => x.format === f.format && x.side === f.side && same(x, mf));
+  if (!target) { target = { ...JSON.parse(JSON.stringify(mf)), id: "f_" + uid(), name: flipName(f.name) }; book.formations.push(target); }
+  const np = { ...JSON.parse(JSON.stringify(mirrorP(p))), id: "p_" + uid(), name: flipName(p.name), formationId: target.id };
+  book.plays.push(np);
+  book.packages.forEach((k) => { if (k.playIds.includes(p.id)) k.playIds.push(np.id); });
+  save(); state.playId = np.id; state.formationId = target.id; refresh();
+};
 $("#btn-edit").onclick = () => { if (state.mode === "edit") { state.mode = "view"; state.selPos = null; } else enterEdit(currentPlay() ? "play" : "formation"); refresh(); };
 $("#btn-done").onclick = () => { state.mode = "view"; state.selPos = null; refresh(); };
 $("#btn-undo").onclick = undo;
@@ -814,7 +868,10 @@ $("#title-in").oninput = (e) => { const p = currentPlay(); if (p) { p.name = e.t
 function renderTitle() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
   $("#title").hidden = editing && !!p; $("#title-in").hidden = !(editing && p);
-  $("#title").textContent = p ? p.name : f ? f.name : "Pick a play";
+  $("#title").textContent = (p ? p.name : f ? f.name : "Pick a play") + (state.flip && f ? " ⇄ flipped" : "");
+  $("#btn-flip").setAttribute("aria-pressed", String(!!state.flip));
+  $("#btn-flip").disabled = editing;
+  $("#btn-saveflip").hidden = !p;
   if (p) $("#title-in").value = p.name;
   $("#title-tags").innerHTML = f ? `<span class="tag ${f.side}">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(f.name)}</span>${p ? ` <span class="tag ${p.type}">${p.type}</span>` : ""}` : "";
   $("#btn-edit").textContent = editing ? "Stop editing" : "Edit";
