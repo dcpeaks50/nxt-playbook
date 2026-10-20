@@ -161,7 +161,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
         <button data-v="pos">Pos</button><button data-v="num">#</button><button data-v="name">Name</button>
       </div>
       <button class="btn" id="btn-ghost" aria-pressed="true">Opponent</button>
-      <button class="btn" id="btn-flip" aria-pressed="false" title="Show the play going the other direction">⇄ Flip</button>
+      <div class="seg" id="dir" role="group" aria-label="Direction" title="Run the play to the right or to the left"><button data-v="R" aria-pressed="true">Right</button><button data-v="L">Left</button></div>
       <button class="btn" id="btn-edit">Edit</button>
     </div>
     <div class="editbar" id="editbar" hidden>
@@ -172,7 +172,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <span id="edit-hint"></span>
       <span class="spacer"></span>
       <button class="btn sm" id="btn-dupplay">Duplicate play</button>
-      <button class="btn sm" id="btn-saveflip" title="Make a mirrored copy (Right ↔ Left)">Save flipped copy</button>
+      <button class="btn sm" id="btn-saveflip" hidden title="Make a mirrored copy (Right ↔ Left)">Save flipped copy</button>
       <button class="btn sm danger" id="btn-delplay">Delete play</button>
       <button class="btn sm danger" id="btn-delform">Delete formation</button>
       <button class="btn sm primary" id="btn-done">Done</button>
@@ -200,6 +200,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     </div>
     <div class="box" style="margin-bottom:10px">
       <h3>Layout</h3>
+      <div class="row"><label>Direction</label><div class="seg" id="pdir"><button data-v="R">Right</button><button data-v="L">Left</button><button data-v="B">Both</button></div></div>
       <div class="row"><label>Per page</label><div class="seg" id="pper"><button data-v="1">1</button><button data-v="2" aria-pressed="true">2</button><button data-v="4">4</button><button data-v="6">6</button></div></div>
       <label class="row"><input type="checkbox" id="pink" checked> Ink saver (white field)</label>
       <label class="row"><input type="checkbox" id="pnotes" checked> Coaching notes</label>
@@ -638,6 +639,36 @@ function flagPlays() {
   ];
   return { formations: allF, plays: allP, packages };
 }
+/** The simplified flag playbook: 2 passes + 2 runs per formation, named without a direction (Right | Left switch). */
+const FLAG_V2_FORMS = { fl_split_r: "Split", fl_pro_r: "Pro", fl_bunch_r: "Bunch", fl_load_r: "Load" };
+const FLAG_V2_NAMES = {
+  fl_split23_r: "Split 23", fl_ladder_r: "Split X 4 Ladder", fl_splitjet_r: "Split Jet", fl_tornado_r: "Split Tornado",
+  fl_pro23_r: "Pro 23", fl_hpass_r: "Pro H Pass", fl_prosweep_r: "Pro H Sweep", fl_zrev_r: "Pro Z Reverse",
+  fl_bunchsmash_r: "Bunch Smash", fl_bunch2split_r: "Bunch Shift 23", fl_bunchjet_r: "Bunch Jet", fl_bunchsweep_r: "Bunch Sweep",
+  fl_loadback_r: "Load Throwback", fl_loadflood_r: "Load Flood", fl_loadpower_r: "Load Power", fl_loadcounter_r: "Load Counter",
+};
+function flagPlaysV2() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  const P = (id, formationId, type, paths, events, notes, extra = {}) => ({ id, name: FLAG_V2_NAMES[id], formationId, type, paths, events, notes, ...extra });
+  return [
+    P("fl_bunchsweep_r", "fl_bunch_r", "run", {
+      C: blk(1, 1.2), QB: r([[0.6, -5.3]], { speed: 3 }),
+      H: r([[1.1, -5.6], [5, -4.8], [9, -2], [10, 2], [10, 15]], { speed: 6.3, delay: 0.25, curve: true, star: true }),
+      A: r([[2, -4], [7, -1.5], [9, 1]], { speed: 6.5, end: "block" }), Y: blk(4, 1.2), Z: blk(7, 2.5), X: blk(-1, 1.5),
+    }, [{ t: 0.45, kind: "handoff", to: "H" }], "Handoff to H on the sweep. A leads around the corner, Y and Z seal inside, X comes down to block backside."),
+    P("fl_loadflood_r", "fl_load_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      X: r([[8, 20]]), Z: r([[4.2, 7], [10, 12]], { star: true }), Y: r([[2.5, 4], [8, 4.5]]),
+      H: r([[5, -5], [10, -2]]), A: r([[2, -3.8]], { end: "block" }),
+    }, [{ t: 2.1, kind: "pass", to: "Z" }], "Three levels to the heavy side: X runs a 9 to clear, Z runs a 7 (corner), Y runs a 3 (out), H swings to the flat. A blocks. Read high to low: corner, out, flat."),
+    P("fl_loadcounter_r", "fl_load_r", "run", {
+      C: blk(-1.5, 1.2), QB: r([[0.5, -5.3]], { speed: 3 }),
+      H: r([[3, -4.5], [5, -2]]), A: r([[1, -5.8], [-3, -5], [-7, -2], [-8, 3], [-8, 15]], { speed: 6.3, delay: 0.2, curve: true, star: true }),
+      Y: r([[0.5, -1.6], [-4, 0.5]], { end: "block" }), Z: blk(2.5, 1.5), X: blk(6.5, 1.5),
+    }, [{ t: 0.7, kind: "handoff", to: "A" }], "Everything looks like Load Power to the heavy side. H fakes it, A takes the handoff back the other way, and Y pulls across to lead him."),
+  ];
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -754,10 +785,27 @@ if (book.version < 12) {
 if (book.version < 13) {
   const fp = flagPlays();
   for (const id of ["fl_tornado_r", "fl_tornado_l"]) {
-    if (!book.plays.some((x) => x.id === id)) book.plays.push(fp.plays.find((p) => p.id === id));
+    const np = fp.plays.find((p) => p.id === id);
+    if (np && !book.plays.some((x) => x.id === id)) book.plays.push(np);
     const flag = book.packages.find((k) => k.id === "pk_flag"); if (flag && !flag.playIds.includes(id)) flag.playIds.push(id);
   }
   book.version = 13;
+}
+// v14: simpler flag playbook. One version of each play (a Right | Left switch flips it), 2 passes + 2 runs per formation.
+if (book.version < 14) {
+  for (const p of flagPlaysV2()) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
+  const keep = Object.keys(FLAG_V2_NAMES);
+  const gone = new Set(book.plays.filter((p) => p.id.startsWith("fl_") && !keep.includes(p.id)).map((p) => p.id));
+  book.plays = book.plays.filter((p) => !gone.has(p.id));
+  book.formations = book.formations.filter((f) => !/^fl_.*_l$/.test(f.id));
+  for (const p of book.plays) if (FLAG_V2_NAMES[p.id]) { p.name = FLAG_V2_NAMES[p.id]; p.notes = String(p.notes || "").replace(/\b[Cc]all side right: /, "Call side: "); }
+  for (const f of book.formations) if (FLAG_V2_FORMS[f.id]) f.name = FLAG_V2_FORMS[f.id];
+  for (const k of book.packages) k.playIds = k.playIds.filter((id) => !gone.has(id) && book.plays.some((p) => p.id === id));
+  const flag = book.packages.find((k) => k.id === "pk_flag");
+  if (flag) flag.playIds = keep.filter((id) => book.plays.some((p) => p.id === id));
+  const motion = book.packages.find((k) => k.id === "pk_motion");
+  if (motion) motion.playIds = ["fl_splitjet_r", "fl_ladder_r", "fl_bunchjet_r", "fl_bunch2split_r"].filter((id) => book.plays.some((p) => p.id === id));
+  book.version = 14;
 }
 }
 const prefs = store.get(PREFS, {});
@@ -1319,10 +1367,15 @@ $("#btn-dupform").onclick = () => {
 
 // ---------------------------------------------------------------- details / editing
 function enterEdit(mode) { setPlaying(false); state.mode = "edit"; state.editMode = mode; state.t = 0; state.flip = false; }
-$("#btn-flip").onclick = () => {
-  if (state.mode === "edit") return; // edit the real play; use "Save flipped copy" for a mirrored one
-  state.flip = !state.flip; renderTitle(); setT(state.t);
+// Right | Left: every play is drawn to the right; Left shows it mirrored (names, notes and printing follow).
+$("#dir").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b || state.mode === "edit") return;
+  state.flip = b.dataset.v === "L"; renderTitle(); renderDetails(); setT(state.t);
 };
+const swapLR = (s) => String(s || "").replace(/\b(Right|Left|right|left)\b/g, (w) => ({ Right: "Left", Left: "Right", right: "left", left: "right" }[w]));
+const dirText = (s) => (state.flip ? swapLR(s) : s);
+/** Formation name with the call side, e.g. "Split Right" / "Split Left" for the flag formations. */
+const formName = (f, flip = state.flip) => (/\b(Right|Left)\b/.test(f.name) ? (flip ? swapLR(f.name) : f.name) : f.id.startsWith("fl_") ? `${f.name} ${flip ? "Left" : "Right"}` : f.name);
 $("#btn-saveflip").onclick = () => {
   const p = currentPlay(), f = currentFormation(); if (!p || !f) return;
   const mf = mirrorF(f);
@@ -1363,12 +1416,12 @@ $("#title-in").oninput = (e) => { const p = currentPlay(); if (p) { p.name = e.t
 function renderTitle() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
   $("#title").hidden = editing && !!p; $("#title-in").hidden = !(editing && p);
-  $("#title").textContent = (p ? p.name : f ? f.name : "Pick a play") + (state.flip && f ? " ⇄ flipped" : "");
-  $("#btn-flip").setAttribute("aria-pressed", String(!!state.flip));
-  $("#btn-flip").disabled = editing;
-  $("#btn-saveflip").hidden = !p;
+  $("#title").textContent = p ? dirText(p.name) : f ? formName(f) : "Pick a play";
+  setSeg($("#dir"), state.flip ? "L" : "R");
+  $("#dir").querySelectorAll("button").forEach((b) => (b.disabled = editing));
+  $("#btn-saveflip").hidden = true;
   if (p) $("#title-in").value = p.name;
-  $("#title-tags").innerHTML = f ? `<span class="tag ${f.side}">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(f.name)}</span>${p ? ` <span class="tag ${p.type}">${p.type}</span>` : ""}` : "";
+  $("#title-tags").innerHTML = f ? `<span class="tag ${f.side}">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(formName(f))}</span>${p ? ` <span class="tag ${p.type}">${p.type}</span>` : ""}` : "";
   $("#btn-edit").textContent = editing ? "Stop editing" : "Edit";
   $("#editbar").hidden = !editing;
   setSeg($("#editmode"), state.editMode);
@@ -1383,7 +1436,7 @@ function renderDetails() {
   if (!f) { $("#details").innerHTML = `<div class="box"><h3>Get started</h3><p class="hint">Pick 5v5, 7v7 or 11v11 at the top, then a formation and a play. Hit ▶ to run it, ½× to slow it down, or drag the bar to step through it.</p></div>`; return; }
   let h = "";
   if (p) {
-    h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(p.notes) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
+    h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(dirText(p.notes)) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
     h += `<div class="box"><h3>Packages</h3>${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(p.id) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
       ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
       <div class="row"><label>End zone</label><select id="pgoal">${[["", "None"], ["5", "5 yds away"], ["10", "10 yds away"], ["14", "14 yds away"], ["20", "20 yds away"]].map(([v, l]) => `<option value="${v}" ${String(p.goal || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}</div>`;
@@ -1580,35 +1633,41 @@ $("#btn-print").onclick = () => {
   $("#pw-list").textContent = `Plays in the list (${list.length})${state.pkg !== "all" ? `: ${book.packages.find((k) => k.id === state.pkg)?.name || ""}` : ""}`;
   $("#pw-all").textContent = `Whole playbook (${book.plays.length} plays)`;
   if (!p) document.querySelector('input[name="pwhat"][value="list"]').checked = true;
+  setSeg($("#pdir"), state.flip ? "L" : "R");
   $("#printdlg").showModal();
 };
 $("#print-close").onclick = () => $("#printdlg").close();
+$("#pdir").onclick = (e) => { const b = e.target.closest("button"); if (b) setSeg($("#pdir"), b.dataset.v); };
 $("#pper").onclick = (e) => { const b = e.target.closest("button"); if (b) setSeg($("#pper"), b.dataset.v); };
 $("#print-go").onclick = () => {
   const what = printWhat();
   const per = +($("#pper").querySelector('[aria-pressed="true"]')?.dataset.v || 2);
   const ink = $("#pink").checked, notes = $("#pnotes").checked, showD = $("#pghost").checked;
-  let plays = what === "one" ? [currentPlay()].filter(Boolean) : what === "list" ? visiblePlays() : allPlaysSorted();
-  if (!plays.length) { alert("No plays to print."); return; }
-  const flipOne = what === "one" && state.flip;
+  let base = what === "one" ? [currentPlay()].filter(Boolean) : what === "list" ? visiblePlays() : allPlaysSorted();
+  if (!base.length) { alert("No plays to print."); return; }
+  const dir = $("#pdir").querySelector('[aria-pressed="true"]')?.dataset.v || "R";
+  // Each entry: the play plus whether to print it mirrored (Left). "Both" prints Right then Left.
+  const plays = base.flatMap((p) => (dir === "B" ? [{ p, L: false }, { p, L: true }] : [{ p, L: dir === "L" }]));
   const grid = { 1: [1, 1], 2: [1, 2], 4: [2, 2], 6: [2, 3] }[per];
   const tag = (p, f) => `${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"} · ${esc(f.name)} · ${p.type}${p.snap ? " · motion" : ""}`;
   let html = "";
   if (plays.length > 1) {
     const title = what === "list" && state.pkg !== "all" ? book.packages.find((k) => k.id === state.pkg)?.name : what === "all" ? "Playbook" : "Plays";
-    html += `<section class="ppage pindex"><div><h1>NXT ${esc(title || "Plays")}</h1><p>${plays.length} plays · printed ${new Date().toLocaleDateString()}</p><ol>${plays.map((p) => { const f = formationById(p.formationId); return `<li><b>${esc(p.name)}</b> <span>${f.format}v${f.format} · ${esc(f.name)}</span></li>`; }).join("")}</ol></div></section>`;
+    const label = ({ p, L }) => { const f = formationById(p.formationId); return `<li><b>${esc(L ? swapLR(p.name) : p.name)}</b> <span>${f.format}v${f.format} · ${esc(formName(f, L))}</span></li>`; };
+    html += `<section class="ppage pindex"><div><h1>NXT ${esc(title || "Plays")}</h1><p>${plays.length} plays · printed ${new Date().toLocaleDateString()}</p><ol>${plays.map(label).join("")}</ol></div></section>`;
   }
   for (let i = 0; i < plays.length; i += per) {
     html += `<section class="ppage" style="grid-template-columns:repeat(${grid[0]},1fr);grid-template-rows:repeat(${grid[1]},minmax(0,1fr))">`;
-    plays.slice(i, i + per).forEach((p0, j) => {
-      let f = formationById(p0.formationId), p = p0;
-      if (flipOne) { f = mirrorF(f); p = mirrorP(p); }
+    plays.slice(i, i + per).forEach(({ p: p0, L }, j) => {
+      const f0 = formationById(p0.formationId);
+      const f = L ? mirrorF(f0) : f0, p = L ? mirrorP(p0) : p0;
       const W = WIDTH[f.format];
       const other = book.formations.find((g) => g.format === f.format && g.side !== f.side);
-      const ghost = showD && other ? (flipOne ? mirrorF(other) : other) : null;
-      html += `<div class="pcard"><div class="ph">${plays.length > 1 ? `<span class="pnum">${i + j + 1}</span>` : ""}<span class="pn">${esc(p.name)}${flipOne ? " (flipped)" : ""}</span><span class="pt">${tag(p, f)}</span></div>
+      const ghost = showD && other ? (L ? mirrorF(other) : other) : null;
+      const nm = (L ? swapLR(p.name) : p.name) + (dir === "B" ? (L ? " · Left" : " · Right") : ""), nt = L ? swapLR(p.notes) : p.notes;
+      html += `<div class="pcard"><div class="ph">${plays.length > 1 ? `<span class="pnum">${i + j + 1}</span>` : ""}<span class="pn">${esc(nm)}</span><span class="pt">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"} · ${esc(formName(f0, L))} · ${p.type}${p.snap ? " · motion" : ""}</span></div>
         <svg viewBox="${-W / 2 - 1.5} 0 ${W + 3} ${TOP - BOTTOM}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">${playMarkup(f, p, 0, { ink, ghost })}</svg>
-        ${notes && p.notes ? `<div class="pnote">${esc(p.notes)}</div>` : ""}</div>`;
+        ${notes && nt ? `<div class="pnote">${esc(nt)}</div>` : ""}</div>`;
     });
     html += `</section>`;
   }
