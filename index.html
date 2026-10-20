@@ -88,6 +88,10 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);padding:0}
 .sw[aria-pressed="true"]{outline:3px solid var(--gold);outline-offset:1px}
 .box .seg button{padding:5px 10px}
+.sync{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+.sync[data-tone="ok"]{color:var(--accent)}
+.sync[data-tone="warn"]{color:#f59e0b}
+.hist-row{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 #printarea{display:none}
 @media print{
   @page{size:letter portrait;margin:0.4in}
@@ -120,9 +124,11 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <button data-v="all">All</button><button data-v="O">Offense</button><button data-v="D">Defense</button>
   </div>
   <div class="spacer"></div>
-  <button class="btn primary" id="btn-share">Share</button>
+  <span class="sync" id="sync" title="Everyone with the link shares this playbook"></span>
+  <button class="btn" id="btn-share" hidden>Share</button>
   <button class="btn" id="btn-print">Print / PDF</button>
   <button class="btn" id="btn-roster">Roster</button>
+  <button class="btn" id="btn-history">History</button>
   <button class="btn" id="btn-export">Export</button>
   <button class="btn" id="btn-import">Import</button>
   <input type="file" id="file" accept="application/json,.json" hidden>
@@ -204,6 +210,22 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
   </div>
 </dialog>
 <div id="printarea" aria-hidden="true"></div>
+
+<dialog id="historydlg">
+  <div class="dlg-h"><h2>History</h2><button class="btn" id="history-close">Close</button></div>
+  <div class="dlg-b">
+    <p class="hint" style="margin-top:0">A copy of the shared playbook is saved automatically (at most every 10 minutes while people are editing; the last 40 are kept). Restoring puts that version back for everyone.</p>
+    <div id="history-list"><p class="empty">Loading…</p></div>
+  </div>
+</dialog>
+
+<dialog id="localdlg">
+  <div class="dlg-h"><h2>Plays on this device</h2></div>
+  <div class="dlg-b">
+    <p id="local-text" style="margin-top:0"></p>
+    <div class="row"><button class="btn primary" id="local-add">Add them to the shared playbook</button><button class="btn" id="local-skip">No, just use the shared playbook</button></div>
+  </div>
+</dialog>
 
 <dialog id="sharedlg">
   <div class="dlg-h"><h2>Share plays</h2><button class="btn" id="share-close">Close</button></div>
@@ -476,6 +498,103 @@ function coachPlays() {
   ];
   return { formations, plays };
 }
+
+/**
+ * The coach's 7v7 flag playbook. Shotgun only. X = split end, Z = slot (wide in Split), Y = tight end to the call side,
+ * H = back to the call side, A = the other back. Center is eligible. QB doesn't run.
+ * Everything is written to the RIGHT; Left versions are exact mirrors.
+ */
+function flagPlays() {
+  const F = (id, name, spots) => ({ id, name, format: "7", side: "O", spots: spots.map(([pos, x, y]) => ({ pos, x, y })), lineup: {} });
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  const P = (id, name, formationId, type, paths, events, notes, extra = {}) => ({ id, name, formationId, type, paths, events, notes, ...extra });
+  const SPLIT = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["QB", 0, -5], ["X", -15, -0.7], ["A", -8, -1.6], ["H", 8, -1.6], ["Z", 15, -0.7]];
+  const PRO = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["QB", 0, -5], ["X", -15, -0.7], ["Z", 9, -1.6], ["H", 2, -6], ["A", -2, -6]];
+  const BUNCH = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 4, -1.7], ["X", -4, -0.7], ["QB", 0, -5], ["H", 1.8, -6], ["A", -1.8, -6]];
+  const LOAD = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 4.2, -1.6], ["X", 8, -0.7], ["QB", 0, -5], ["H", 1.8, -6], ["A", 3.6, -6]];
+  const formations = [F("fl_split_r", "Split Right", SPLIT), F("fl_pro_r", "Pro Right", PRO), F("fl_bunch_r", "Bunch Right", BUNCH), F("fl_load_r", "Load Right", LOAD)];
+  const at = (spots, pos) => { const s = spots.find((q) => q[0] === pos); return [s[1], s[2]]; };
+  const SHIFT_SNAP = 2.7; // longest shift (~11 yds) takes ~1.8 s, then everyone is set for ~1 s before the snap
+
+  const plays = [
+    // ---------- Split
+    P("fl_split23_r", "Split Right 23", "fl_split_r", "pass", {
+      C: r([[0, 3], [-2, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      Z: r([[15, 0.8], [11, 2.5], [7, 3.5]], { star: true }), H: r([[8, 6], [13, 6]]), Y: r([[2.5, 5], [3, 4.3]]),
+      X: r([[-15, 20]]), A: r([[-8, 4], [-6, 20]]),
+    }, [{ t: 1.2, kind: "pass", to: "Z" }], "Call side right: Z runs a 2 (slant), H runs a 3 (out). Y sits at 5. Backside X and A run 9s. C checks down over the middle."),
+    P("fl_splitjet_r", "Split Right Jet", "fl_split_r", "run", {
+      C: blk(0.5, 1.2), QB: r([[0.3, -4.4]], { speed: 3 }),
+      A: r([[-4, -2.6], [0, -3.4], [6, -3], [11, 0], [13, 4], [13, 16]], { speed: 7, curve: true, motion: true, star: true }),
+      Y: blk(4, 1.4), H: blk(10, 2.5), Z: blk(14, 4), X: r([[-15, 10]]),
+    }, [{ t: 1.25, kind: "handoff", to: "A" }], "A goes in jet motion from the left slot. Snap as he gets to the QB; hand it off on the run. Y, H and Z seal the edge; X runs his man off.", { snap: 0.7 }),
+    // ---------- Pro
+    P("fl_prosweep_r", "Pro Right H Sweep", "fl_pro_r", "run", {
+      C: blk(1, 1.2), QB: r([[0.6, -5.3]], { speed: 3 }),
+      H: r([[1.1, -5.6], [6, -4.6], [10, -1], [11, 3], [11, 15]], { speed: 6.3, delay: 0.25, curve: true, star: true }),
+      A: r([[1, -3.6], [7, -1], [9.5, 2]], { end: "block" }), Y: blk(3.8, 1.2), Z: blk(10.5, 3.5), X: r([[-15, 10]]),
+    }, [{ t: 0.45, kind: "handoff", to: "H" }], "Handoff to H going right. A leads through, Y seals inside, Z blocks the corner. X runs off."),
+    P("fl_pro23_r", "Pro Right 23", "fl_pro_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      Z: r([[9, 0.6], [6, 2.2], [3, 3]], { star: true }), Y: r([[2.5, 6.5], [7, 6.5]]),
+      H: r([[5, -4.5], [9, -3]]), A: r([[-3, -4.5], [-6, -2]]), X: r([[-15, 20]]),
+    }, [{ t: 1.1, kind: "pass", to: "Z" }], "Call side right: Z runs a 2 (slant) underneath, Y runs a 3 (out) over the top. H swings to the flat, A checks left, X runs a 9."),
+    P("fl_proz7_r", "Pro Right Z Motion 7", "fl_pro_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      Z: r([[6, -1.8], [5.5, 6], [11, 12]], { speed: 6.3, motion: true, star: true }),
+      Y: r([[2.5, 5], [2.8, 4.2]]), H: r([[5, -4.5], [9, -2.5]]), A: r([[-3, -4.5], [-6, -2]]), X: r([[-15, 7], [-8, 14]]),
+    }, [{ t: 2.3, kind: "pass", to: "Z" }], "Z motions in tight next to Y, then runs a 7 (corner) off the snap. Y sits at 5, H runs to the flat. Backside X runs an 8 (post).", { snap: 0.6 }),
+    // ---------- Bunch
+    P("fl_bunchsmash_r", "Bunch Right Smash", "fl_bunch_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      Z: r([[4, 5], [10, 11]], { star: true }), Y: r([[2.5, 5], [2.8, 4.2]]), H: r([[6, -4], [11, -2]]),
+      X: r([[-4, 6], [2, 13]]), A: r([[-5, -4], [-8, -1.5]]),
+    }, [{ t: 2, kind: "pass", to: "Z" }], "Z runs a 7 (corner) over Y's 4 (hitch); H runs to the flat. X crosses deep on an 8 (post). A checks left."),
+    P("fl_bunchjet_r", "Bunch Right Jet", "fl_bunch_r", "run", {
+      C: blk(0.5, 1.2), QB: r([[0.2, -4.5]], { speed: 3 }),
+      X: r([[-2.5, -2.4], [0, -3.4], [5, -3.2], [9, -0.5], [10, 3], [10, 15]], { speed: 7, curve: true, motion: true, star: true }),
+      Y: blk(3.8, 1.2), Z: blk(6.5, 2), H: r([[4.5, -3.5], [8, 0]], { end: "block" }), A: r([[-4, -5], [-6, -2]]),
+    }, [{ t: 0.75, kind: "handoff", to: "X" }], "X goes in jet motion from his tight spot. Snap as he gets to the QB; hand it off on the run. H leads, Y and Z seal. A fakes the other way.", { snap: 0.4 }),
+    // ---------- Load
+    P("fl_loadpower_r", "Load Right Power", "fl_load_r", "run", {
+      C: blk(1, 1), QB: r([[0.6, -5.3]], { speed: 3 }),
+      H: r([[1.1, -5.6], [4, -4.6], [6, -1.5], [6.5, 3], [7, 14]], { speed: 6.3, delay: 0.25, curve: true, star: true }),
+      A: r([[5, -3], [6, 0.5]], { end: "block" }), Y: blk(3.5, 1.2), Z: blk(5.5, 1.6), X: blk(9, 2.5),
+    }, [{ t: 0.45, kind: "handoff", to: "H" }], "Everybody's heavy right. Handoff to H; A leads up the hole, Y, Z and X block down. North-south, no dancing."),
+    P("fl_loadback_r", "Load Right Throwback", "fl_load_r", "pass", {
+      C: r([[0, 3]]), QB: r([[0.8, -5.6], [1.5, -6.5]], { speed: 3 }),
+      H: r([[1.2, -5], [5, -3.5]], { end: "block" }), A: r([[1.5, -6.6], [-5, -5.5], [-10, -2.5], [-12, 5], [-12, 16]], { speed: 6.3, curve: true, star: true }),
+      Y: r([[2.5, 5], [7, 5]]), Z: r([[4.2, 8], [10, 12]]), X: r([[8, 15]]),
+    }, [{ t: 2.2, kind: "pass", to: "A" }], "Everything flows right: H fakes the power, Y, Z and X flood right. A leaks back to the empty left side and the QB throws it back to him."),
+    // ---------- Shifts (set in one formation, shift to another at the last second)
+    P("fl_bunch2split_r", "Bunch Shift Split Right 23", "fl_bunch_r", "pass", {
+      C: r([[0, 3], [-2, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      X: r([at(SPLIT, "X"), [-15, 20]], { shift: true }), A: r([at(SPLIT, "A"), [-8, 4], [-6, 20]], { shift: true }),
+      H: r([at(SPLIT, "H"), [8, 6], [13, 6]], { shift: true }), Z: r([at(SPLIT, "Z"), [15, 0.8], [11, 2.5], [7, 3.5]], { shift: true, star: true }),
+      Y: r([[2.5, 5], [3, 4.3]]),
+    }, [{ t: SHIFT_SNAP + 1.2, kind: "pass", to: "Z" }], "Line up in Bunch. Everyone shifts out to Split at the last second, sets, then runs Split Right 23: Z 2 (slant), H 3 (out), backside 9s.", { snap: SHIFT_SNAP }),
+    P("fl_split2bunch_r", "Split Shift Bunch Right Smash", "fl_split_r", "pass", {
+      C: r([[0, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
+      X: r([at(BUNCH, "X"), [-4, 6], [2, 13]], { shift: true }), A: r([at(BUNCH, "A"), [-5, -4], [-8, -1.5]], { shift: true }),
+      H: r([at(BUNCH, "H"), [6, -4], [11, -2]], { shift: true }), Z: r([at(BUNCH, "Z"), [4, 5], [10, 11]], { shift: true, star: true }),
+      Y: r([[2.5, 5], [2.8, 4.2]]),
+    }, [{ t: SHIFT_SNAP + 2, kind: "pass", to: "Z" }], "Line up spread out in Split. Everyone shifts into Bunch at the last second, sets, then runs Bunch Right Smash: Z 7 (corner) over Y's 4 (hitch), H to the flat.", { snap: SHIFT_SNAP }),
+  ];
+
+  // Left versions: mirror every formation and play (H and Y go to the left, the call side).
+  const swap = (s) => s.replace(/\bRight\b/g, "Left").replace(/\bright\b/g, "left");
+  const mf = (f) => ({ ...f, id: f.id.replace(/_r$/, "_l"), name: swap(f.name), spots: f.spots.map((s) => ({ ...s, x: -s.x })) });
+  const mp = (p) => ({ ...p, id: p.id.replace(/_r$/, "_l"), name: swap(p.name), formationId: p.formationId.replace(/_r$/, "_l"), notes: swap(p.notes),
+    paths: Object.fromEntries(Object.entries(p.paths).map(([k, v]) => [k, { ...v, pts: v.pts.map(([x, y]) => [-x, y]) }])) });
+  const allF = [...formations, ...formations.map(mf)], allP = [...plays, ...plays.map(mp)];
+  const ids = (re) => allP.filter((p) => re.test(p.id)).map((p) => p.id);
+  const packages = [
+    { id: "pk_flag", name: "Flag 7v7", playIds: allP.map((p) => p.id) },
+    { id: "pk_motion", name: "Motion & shifts", playIds: ids(/jet|z7|2split|2bunch/) },
+  ];
+  return { formations: allF, plays: allP, packages };
+}
 /** Play names lead with the formation so the call reads at a glance (only renamed if the coach hasn't renamed it). */
 const RENAMES = {
   p11dive: ["Dive Right", "I-Form Dive Right"], p11toss: ["Toss Sweep Left", "I-Form Toss Left"], p11boot: ["PA Boot Right", "I-Form PA Boot Right"],
@@ -490,6 +609,9 @@ const RENAMES = {
 // ---------------------------------------------------------------- state
 let book = store.get(KEY, null);
 if (!book || !Array.isArray(book.plays)) book = samplePlaybook();
+runMigrations();
+/** Bring any playbook (this device's, the shared one, an import) up to the current version. Works on `book`. */
+function runMigrations() {
 // v2: plays show the ball carrier as a star. Give older playbooks one: whoever gets the ball last.
 if ((book.version || 1) < 2) {
   for (const p of book.plays) {
@@ -552,6 +674,15 @@ if (book.version < 9) {
   if (open && !open.playIds.includes("p7sr23")) open.playIds.splice(Math.min(3, open.playIds.length), 0, "p7sr23");
   book.version = 9;
 }
+// v10: the 7v7 flag playbook (Split / Pro / Bunch / Load, Right and Left) with motion and shifts. Nothing old is removed.
+if (book.version < 10) {
+  const fp = flagPlays();
+  for (const f of fp.formations) if (!book.formations.some((x) => x.id === f.id)) book.formations.push(f);
+  for (const p of fp.plays) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
+  for (const k of fp.packages) { const mine = book.packages.find((x) => x.id === k.id); if (mine) { for (const id of k.playIds) if (!mine.playIds.includes(id)) mine.playIds.push(id); } else book.packages.push(k); }
+  book.version = 10;
+}
+}
 const prefs = store.get(PREFS, {});
 const state = {
   format: prefs.format || "11", side: prefs.side || "all", formationId: null, type: "all", pkg: "all",
@@ -567,16 +698,102 @@ const save = () => {
   undoStack.push(lastSaved); if (undoStack.length > 60) undoStack.shift();
   lastSaved = now; store.set(KEY, book);
   const u = document.getElementById("btn-undo"); if (u) u.disabled = false;
+  pushSoon();
 };
 function undo() {
   if (!undoStack.length) return;
-  book = JSON.parse(undoStack.pop()); lastSaved = JSON.stringify(book); store.set(KEY, book);
+  book = JSON.parse(undoStack.pop()); lastSaved = JSON.stringify(book); store.set(KEY, book); pushSoon();
   if (state.playId && !book.plays.some((p) => p.id === state.playId)) state.playId = null;
   if (state.formationId && !formationById(state.formationId)) state.formationId = null;
   $("#btn-undo").disabled = !undoStack.length;
   refresh();
 }
-const savePrefs = () => store.set(PREFS, { format: state.format, side: state.side, labels: state.labels, ghost: state.ghost });
+
+// ---------------------------------------------------------------- the shared playbook (Cloudflare Worker + D1)
+// Everyone with the link reads and edits one playbook. This device keeps a copy so the site works offline.
+const API = "API_URL";
+const LOCAL_CHECKED = "nxt-local-checked-v1";
+const sync = { ready: false, rev: 0, timer: 0, saving: false, again: false, forceBackup: false, offline: false };
+function syncStatus(text, tone = "") { const el = document.getElementById("sync"); if (el) { el.textContent = text; el.dataset.tone = tone; } }
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, { cache: "no-store", ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  return data;
+}
+function pushSoon() { if (!sync.ready) return; clearTimeout(sync.timer); syncStatus("Saving…"); sync.timer = setTimeout(pushNow, 1200); }
+async function pushNow() {
+  sync.timer = 0;
+  if (sync.saving) { sync.again = true; return; }
+  sync.saving = true;
+  try {
+    const q = sync.forceBackup ? "?backup=1" : ""; sync.forceBackup = false;
+    const r = await api("/playbook" + q, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ book }) });
+    sync.rev = r.rev; sync.offline = false; syncStatus("All changes saved", "ok");
+  } catch { sync.offline = true; syncStatus("Offline: saved on this device", "warn"); }
+  sync.saving = false;
+  if (sync.again) { sync.again = false; pushNow(); }
+}
+function starterBook() { const keep = book; book = samplePlaybook(); runMigrations(); const s = book; book = keep; return s; }
+/** Plays this device made or changed (compared with the starter plays) that the shared playbook doesn't have. */
+function localOnlyPlays(local, remote) {
+  const byId = (b) => Object.fromEntries(b.plays.map((p) => [p.id, JSON.stringify(p)]));
+  const s = byId(starterBook()), r = byId(remote);
+  return local.plays.filter((p) => { const j = JSON.stringify(p); return j !== s[p.id] && j !== r[p.id]; });
+}
+function adoptRemote(remoteBook, rev) {
+  book = remoteBook; runMigrations(); sync.rev = rev;
+  lastSaved = JSON.stringify(book); undoStack.length = 0; store.set(KEY, book);
+  const u = document.getElementById("btn-undo"); if (u) u.disabled = true;
+  if (state.playId && !book.plays.some((p) => p.id === state.playId)) state.playId = null;
+  if (state.formationId && !formationById(state.formationId)) state.formationId = null;
+}
+async function loadShared() {
+  if (API.startsWith("API_")) return;
+  syncStatus("Connecting…");
+  let r;
+  try { r = await api("/playbook"); } catch { syncStatus("Offline: using this device's copy", "warn"); setTimeout(loadShared, 30000); return; }
+  if (!r.book) { sync.ready = true; store.set(LOCAL_CHECKED, true); await pushNow(); return; } // very first visit: this playbook becomes the shared one
+  const local = book;
+  adoptRemote(r.book, r.rev);
+  sync.ready = true;
+  syncStatus("All changes saved", "ok");
+  if (!store.get(LOCAL_CHECKED, false)) {
+    store.set(LOCAL_CHECKED, true);
+    const mine = localOnlyPlays(local, book);
+    if (mine.length) offerLocal(local, mine);
+  }
+  refresh();
+}
+function offerLocal(local, mine) {
+  $("#local-text").innerHTML = `This device has <b>${mine.length} play${mine.length > 1 ? "s" : ""}</b> you made or changed before the playbook was shared: ${mine.slice(0, 6).map((p) => `<b>${esc(p.name)}</b>`).join(", ")}${mine.length > 6 ? "…" : ""}. Add ${mine.length > 1 ? "them" : "it"} to the shared playbook so everyone sees ${mine.length > 1 ? "them" : "it"}?`;
+  $("#local-add").onclick = () => {
+    for (const p of mine) { const i = book.plays.findIndex((x) => x.id === p.id); if (i >= 0) book.plays[i] = p; else book.plays.push(p); }
+    const fids = new Set(mine.map((p) => p.formationId));
+    for (const f of local.formations) if (fids.has(f.id) && !book.formations.some((x) => x.id === f.id)) book.formations.push(f);
+    for (const k of local.packages || []) {
+      const ids = k.playIds.filter((id) => mine.some((p) => p.id === id)), sk = book.packages.find((x) => x.id === k.id);
+      if (sk) { for (const id of ids) if (!sk.playIds.includes(id)) sk.playIds.push(id); }
+      else if (ids.length) book.packages.push({ ...k, playIds: k.playIds.filter((id) => book.plays.some((p) => p.id === id)) });
+    }
+    if (!book.roster?.length && local.roster?.length) book.roster = local.roster;
+    $("#localdlg").close(); save(); refresh();
+  };
+  $("#local-skip").onclick = () => $("#localdlg").close();
+  $("#localdlg").showModal();
+}
+// Pick up other people's changes every 15 s (not while you're editing, dragging or saving).
+setInterval(async () => {
+  if (!sync.ready || document.hidden || sync.timer || sync.saving || drag || state.mode === "edit") return;
+  try {
+    const { rev } = await api("/rev");
+    if (rev && rev !== sync.rev) { const r = await api("/playbook"); if (r.book && !sync.timer && !sync.saving && state.mode !== "edit") { adoptRemote(r.book, r.rev); refresh(); } }
+    if (sync.offline) { sync.offline = false; syncStatus("All changes saved", "ok"); }
+  } catch { sync.offline = true; syncStatus("Offline: saved on this device", "warn"); }
+}, 15000);
+window.addEventListener("online", () => { if (sync.ready && sync.offline) pushNow(); });
+
+const savePrefs =() => store.set(PREFS, { format: state.format, side: state.side, labels: state.labels, ghost: state.ghost });
 
 const formationById = (id) => book.formations.find((f) => f.id === id);
 const currentPlay = () => book.plays.find((p) => p.id === state.playId) || null;
@@ -600,7 +817,12 @@ const pathEnd = (path, pos, fmt) => path?.end || (role(pos, fmt) === "line" ? "b
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** The line a player runs, from their spot through each point. Curved lines are smoothed through the points. */
+// Shifts: when path.shift is on, the first point is where the player shifts to before the snap; the route starts there.
+const SHIFT_SPEED = 6;
+const shiftSpot = (spot, path) => (path?.shift && path.pts?.length ? { pos: spot.pos, x: path.pts[0][0], y: path.pts[0][1] } : null);
 function routePts(spot, path) {
+  const sh = shiftSpot(spot, path);
+  if (sh) return routePts(sh, { ...path, shift: false, pts: path.pts.slice(1) });
   const raw = [{ x: spot.x, y: spot.y }, ...(path?.pts || []).map(([x, y]) => ({ x, y }))];
   if (!path?.curve || raw.length < 3) return raw;
   const out = [raw[0]];
@@ -616,6 +838,13 @@ function routePts(spot, path) {
 }
 function posAt(spot, path, fmt, t, snap = 0) {
   if (!path?.pts?.length) return { x: spot.x, y: spot.y };
+  const sh = shiftSpot(spot, path);
+  if (sh) {
+    // Shift to the new spot right away, set, then run the route after the snap.
+    const d0 = dist(spot, sh) / SHIFT_SPEED;
+    if (t <= d0) { const k = d0 ? t / d0 : 1; return { x: spot.x + (sh.x - spot.x) * k, y: spot.y + (sh.y - spot.y) * k }; }
+    return posAt(sh, { ...path, shift: false, motion: false, pts: path.pts.slice(1) }, fmt, t, snap);
+  }
   // Players in motion start right away; everyone else waits for the snap.
   let tt = t - (path.motion ? 0 : snap) - (path.delay || 0);
   if (tt <= 0) return { x: spot.x, y: spot.y };
@@ -629,6 +858,8 @@ function posAt(spot, path, fmt, t, snap = 0) {
 }
 function pathDuration(spot, path, fmt, snap = 0) {
   if (!path?.pts?.length) return 0;
+  const sh = shiftSpot(spot, path);
+  if (sh) return Math.max(dist(spot, sh) / SHIFT_SPEED, pathDuration(sh, { ...path, shift: false, motion: false, pts: path.pts.slice(1) }, fmt, snap));
   const pts = routePts(spot, path);
   let L = 0;
   for (let i = 1; i < pts.length; i++) L += dist(pts[i - 1], pts[i]);
@@ -827,6 +1058,13 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
     const pts = routePts(sp, path);
     let col = path.color && path.color !== "#ffffff" ? path.color : COLOR[role(sp.pos, f.format)];
     if (ink) col = inkColor(col);
+    const shp = shiftSpot(sp, path);
+    if (shp) {
+      // Pre-snap shift: thin dashed line to the new spot, with a small ring where he sets.
+      const sc = ink ? "#6b7280" : "#e5e7eb";
+      s += `<line x1="${sp.x}" y1="${sy(sp.y)}" x2="${shp.x}" y2="${sy(shp.y)}" stroke="${sc}" stroke-width="0.16" stroke-dasharray="0.45 0.35" opacity="${t > 0 && !editing ? 0.5 : 0.9}"/><circle cx="${shp.x}" cy="${sy(shp.y)}" r="0.45" fill="none" stroke="${sc}" stroke-width="0.12"/>`;
+      if (pts.length < 2) continue; // only a shift, no route after it
+    }
     const sel = editing && state.selPos === sp.pos;
     const dash = DASH[path.dash || "solid"];
     s += `<polyline points="${pts.map((p) => `${p.x},${sy(p.y)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${sel ? 0.34 : 0.24}" stroke-linejoin="round" stroke-linecap="round" opacity="${t > 0 && !editing ? 0.45 : 0.95}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
@@ -868,7 +1106,8 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
   // Motion plays: "MOTION…" until the snap, then a quick "SNAP!"
   const snapT = play?.snap || 0;
   if (f.side === "O" && snapT > 0 && t > 0) {
-    const label = t < snapT ? "MOTION…" : t < snapT + 0.7 ? "SNAP!" : "";
+    const shifting = Object.values(play.paths || {}).some((q) => q.shift);
+    const label = t < snapT ? (shifting ? "SHIFT…" : "MOTION…") : t < snapT + 0.7 ? "SNAP!" : "";
     if (label) s += `<text x="0" y="${sy(-9.3)}" text-anchor="middle" font-size="1.6" font-weight="900" fill="${label === "SNAP!" ? "#facc15" : "#fff"}" stroke="#0b1220" stroke-width="0.08" paint-order="stroke">${label}</text>`;
   }
   return s;
@@ -1083,7 +1322,8 @@ function renderDetails() {
       <div class="row"><label>End</label>${opt("end", pathEnd(path, sel, f.format), [["arrow", "→ Running"], ["block", "⊥ Blocking"]])}</div>
       <div class="row"><label>Color</label><span class="swatches">${PALETTE.map((c) => `<button class="sw" data-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${path?.color === c}"></button>`).join("")}<button class="btn sm" data-color="">Default</button></span></div>
       <div class="row"><label>Ball</label><button class="btn sm" id="pstar" aria-pressed="${!!path?.star}">${path?.star ? "★ Gets the ball (on)" : "☆ Gets the ball"}</button></div>
-      ${f.side === "O" ? `<div class="row"><label>Motion</label><button class="btn sm" id="pmotion" aria-pressed="${!!path?.motion}">${path?.motion ? "In motion (moves before the snap) ✓" : "Put in motion"}</button></div>` : ""}
+      ${f.side === "O" ? `<div class="row"><label>Motion</label><button class="btn sm" id="pmotion" aria-pressed="${!!path?.motion}">${path?.motion ? "In motion (moves before the snap) ✓" : "Put in motion"}</button></div>
+      <div class="row"><label>Shift</label><button class="btn sm" id="pshift" aria-pressed="${!!path?.shift}">${path?.shift ? "First point is a shift ✓" : "First point is a shift"}</button><span class="hint">Shifts to that spot, sets, then runs his route after the snap.</span></div>` : ""}
       <div class="row"><label>Speed</label><input type="range" id="pspeed" min="2" max="9" step="0.5" value="${pathSpeed(path, sel, f.format)}"><span id="pspeed-v">${pathSpeed(path, sel, f.format)} yd/s</span></div>
       <div class="row"><label>Wait</label><input type="range" id="pdelay" min="0" max="3" step="0.1" value="${path?.delay || 0}"><span id="pdelay-v">${(path?.delay || 0).toFixed(1)} s</span></div>
       <div class="row"><button class="btn sm" id="pundo">Undo last point</button><button class="btn sm danger" id="pclear">Clear line</button></div>` : `<p class="hint">Tap a player on the field, or press on a player and drag to draw their line.</p>`}</div>`;
@@ -1155,7 +1395,8 @@ $("#details").addEventListener("click", (e) => {
   }
   if (e.target.id === "setsnap") { p.snap = Math.round(state.t * 10) / 10; save(); setT(state.t); renderDetails(); }
   if (e.target.id === "clearsnap") { p.snap = 0; save(); setT(state.t); renderDetails(); }
-  if (e.target.id === "pmotion" && state.selPos) { const path = (p.paths[state.selPos] ||= { pts: [] }); path.motion = !path.motion; save(); setT(state.t); renderDetails(); }
+  if (e.target.id === "pmotion" && state.selPos) { const path = (p.paths[state.selPos] ||= { pts: [] }); path.motion = !path.motion; if (path.motion) path.shift = false; save(); setT(state.t); renderDetails(); }
+  if (e.target.id === "pshift" && state.selPos) { const path = (p.paths[state.selPos] ||= { pts: [] }); path.shift = !path.shift; if (path.shift) path.motion = false; save(); setT(state.t); renderDetails(); }
   if (e.target.id === "evadd") { (p.events ||= []).push({ t: Math.round(state.t * 10) / 10, kind: $("#evkind").value, to: $("#evto").value }); save(); setT(state.t); renderDetails(); }
   const de = e.target.closest("[data-delev]");
   if (de) { p.events.splice(+de.dataset.delev, 1); save(); setT(state.t); renderDetails(); }
@@ -1309,9 +1550,9 @@ $("#file").onchange = async (e) => {
   try {
     const data = JSON.parse(await file.text());
     if (!Array.isArray(data.formations) || !Array.isArray(data.plays)) throw new Error("That file isn't an NXT playbook.");
-    if (!confirm("Replace the playbook on this device with the imported one?")) return;
+    if (!confirm(sync.ready ? "Replace the shared playbook (for everyone with the link) with this file? The current one is kept in History." : "Replace the playbook on this device with the imported one?")) return;
     data.roster ||= []; data.packages ||= [];
-    book = data; save(); state.playId = null; state.formationId = null; refresh();
+    book = data; runMigrations(); sync.forceBackup = true; save(); state.playId = null; state.formationId = null; refresh();
   } catch (err) { alert(err.message || "Couldn't read that file."); }
 };
 
@@ -1418,8 +1659,32 @@ async function checkShareLink() {
   $("#sharein").showModal();
 }
 
+// ---------------------------------------------------------------- history (earlier versions of the shared playbook)
+$("#btn-history").onclick = async () => {
+  $("#historydlg").showModal();
+  if (!sync.ready) { $("#history-list").innerHTML = `<p class="empty">History shows up once the shared playbook is connected.</p>`; return; }
+  $("#history-list").innerHTML = `<p class="empty">Loading…</p>`;
+  try {
+    const rows = await api("/backups");
+    $("#history-list").innerHTML = rows.length
+      ? rows.map((r) => `<div class="hist-row"><span><b>${new Date(r.at).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</b> · ${r.plays} plays</span><button class="btn sm" data-restore="${r.id}">Restore</button></div>`).join("")
+      : `<p class="empty">No earlier versions yet. They show up as people edit.</p>`;
+  } catch (e) { $("#history-list").innerHTML = `<p class="empty">Couldn't load history (${esc(e.message)}).</p>`; }
+};
+$("#history-close").onclick = () => $("#historydlg").close();
+$("#history-list").onclick = async (e) => {
+  const b = e.target.closest("[data-restore]"); if (!b) return;
+  if (!confirm("Put this version back for everyone? The current playbook is saved in History first.")) return;
+  try {
+    const r = await api("/backups/" + b.dataset.restore);
+    book = r.book; runMigrations(); sync.forceBackup = true; save(); state.playId = null; state.formationId = null;
+    $("#historydlg").close(); refresh();
+  } catch (err) { alert("Couldn't restore: " + err.message); }
+};
+
 if (!state.playId) state.playId = (visiblePlays()[0] || {}).id || null;
 refresh();
+loadShared();
 checkShareLink();
 window.addEventListener("hashchange", checkShareLink);
 </script>
