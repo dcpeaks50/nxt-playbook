@@ -267,10 +267,6 @@ function samplePlaybook() {
       C: r([[0, 1]], { end: "block" }), QB: r([[0, -6.5]], { speed: 3 }), RB: r([[-2.5, -3], [-6, 0]]),
       Y: r([[11.5, 6], [17, 12]]), Z: r([[13, 5], [13, 4]]), H: r([[13.5, -1], [18, 0]]), X: r([[-16, 10], [-6, 10]]),
     }, [{ t: 2.2, kind: "pass", to: "Y" }], "Corner over the top, hitch underneath, flat to the sideline. Great vs zone."),
-    P("p7rev", "Reverse", "f7s", "run", {
-      C: r([[0, 1.2]], { end: "block" }), QB: r([[0.2, -4.2]], { speed: 3 }), RB: r([[1, -4.6], [5, -4]], { speed: 5 }),
-      Y: r([[7, -3], [4, -4], [-6, -3], [-14, 2], [-14, 14]], { speed: 7, delay: 0.7 }), X: r([[-16, 3]], { end: "block" }), H: r([[-9, 2]], { end: "block" }), Z: r([[16, 9]]),
-    }, [{ t: 0.45, kind: "handoff", to: "RB" }, { t: 1.4, kind: "handoff", to: "Y" }], "RB starts right and hands to Y coming back the other way."),
     // ---------- 7v7 defense
     P("p7c2", "Cover 2", "f7d", "zone", {
       LCB: r([[-16, 4], [-14, 6]]), RCB: r([[16, 4], [14, 6]]), WLB: r([[-7, 9]]), MLB: r([[0, 11]]), SLB: r([[7, 9]]), FS: r([[-11, 17]]), SS: r([[11, 17]]),
@@ -304,14 +300,66 @@ function samplePlaybook() {
     }, [], "Corners sit underneath, LB takes the middle, safety rotates deep."),
   ];
   plays.find((p) => p.id === "p7jet").snap = JET_SNAP;
+  const cp = coachPlays();
+  formations.push(...cp.formations); plays.push(...cp.plays);
   const packages = [
     { id: "pk_open", name: "Opening script", playIds: ["p11dive", "p11bubble", "p11boot", "p7slant", "p7jet", "p5mesh", "p5sweep"] },
     { id: "pk_xp", name: "Extra point", playIds: ["p11xp", "p5xp", "p7slant"] },
     { id: "pk_man", name: "vs Man", playIds: ["p11boot", "p5mesh", "p7slant"] },
     { id: "pk_zone", name: "vs Zone", playIds: ["p11verts", "p7smash", "p7verts", "p5flood"] },
-    { id: "pk_trick", name: "Trick plays", playIds: ["p11hbpass", "p7rev", "p5hook"] },
+    { id: "pk_trick", name: "Trick plays", playIds: ["p11hbpass", "p7rev", "p7ladder", "p5hook"] },
   ];
   return { version: 1, roster: [], formations, plays, packages };
+}
+
+/** The coach's own 7v7 plays: Gun Split (C + 2 linemen, QB in the gun, two backs, X) and Gun Slot Right. */
+function coachPlays() {
+  const F = (id, name, format, side, spots) => ({ id, name, format, side, spots: spots.map(([pos, x, y]) => ({ pos, x, y })), lineup: {} });
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y) => r([[x, y]], { end: "block" });
+  const P = (id, name, formationId, type, paths, events, notes, extra = {}) => ({ id, name, formationId, type, paths, events, notes, ...extra });
+  const formations = [
+    F("f7split", "Gun Split", "7", "O", [["C", 0, -0.7], ["LG", -2, -0.7], ["RG", 2, -0.7], ["QB", 0, -5], ["HB", -2.5, -5], ["FB", 2.5, -5], ["X", 14, -0.7]]),
+    F("f7slot", "Gun Slot Right", "7", "O", [["C", 0, -0.7], ["LG", -2, -0.7], ["RG", 2, -0.7], ["QB", 0, -5], ["RB", 2.5, -5], ["X", -14, -0.7], ["Y", 8, -1.6]]),
+  ];
+  const lineRight = { C: blk(1, 1), LG: blk(-0.5, 1), RG: blk(3.5, 1) };
+  const lineLeft = { C: blk(-1, 1), LG: blk(-3.5, 1), RG: blk(0.5, 1) };
+  const plays = [
+    P("p7rev", "Split X Reverse", "f7split", "run", {
+      C: blk(1, 1.2), LG: blk(-0.8, 1.2), RG: blk(3, 1.2), QB: r([[1, -4.6], [-2.5, -6.5]], { speed: 3 }),
+      FB: r([[3.5, -1.5], [2, 3], [-4, 7]], { speed: 6.8, end: "block" }),
+      HB: r([[-0.8, -4.2], [4, -4.4], [7.5, -4.4]], { speed: 6 }),
+      X: r([[11, -3.5], [6, -6], [0, -6.5], [-8, -5.5], [-14, -1], [-16, 5], [-16, 18]], { speed: 7, delay: 0.6, curve: true, star: true }),
+    }, [{ t: 0.55, kind: "handoff", to: "HB" }, { t: 1.7, kind: "handoff", to: "X" }],
+      "FB gets upfield fast to block. HB takes the handoff running right and gives it back to X coming behind him. X takes it around the left side for the TD.", { goal: 14 }),
+    P("p7spr", "Split Right", "f7split", "run", {
+      ...lineRight, QB: r([[0.6, -4.8]], { speed: 3 }),
+      FB: r([[1.2, -4.4], [5, -4], [10, -1], [12, 3], [12, 16]], { speed: 6.3, curve: true, star: true }),
+      HB: r([[0.5, -2.8], [6, -1], [9.5, 2]], { speed: 6, end: "block" }), X: blk(13, 4),
+    }, [{ t: 0.4, kind: "handoff", to: "FB" }], "Handoff to the FB running right. HB leads around the corner; X blocks the corner."),
+    P("p7sprf", "Split Right Fake", "f7split", "run", {
+      ...lineRight, QB: r([[0, -4.3], [0.8, -4.8]], { speed: 3 }),
+      HB: r([[-0.5, -3.8], [0, -1], [0, 4]], { speed: 6 }),
+      FB: r([[1.2, -4.6], [5, -4], [10, -1], [12, 3], [12, 16]], { speed: 6.3, delay: 0.5, curve: true, star: true }), X: blk(13, 4),
+    }, [{ t: 0.7, kind: "handoff", to: "FB" }], "HB runs up the middle like he's getting it. QB fakes to him, then hands to the FB going right."),
+    P("p7spl", "Split Left", "f7split", "run", {
+      ...lineLeft, QB: r([[-0.6, -4.8]], { speed: 3 }),
+      HB: r([[-1.2, -4.4], [-5, -4], [-10, -1], [-12, 3], [-12, 16]], { speed: 6.3, curve: true, star: true }),
+      FB: r([[-0.5, -2.8], [-6, -1], [-9.5, 2]], { speed: 6, end: "block" }), X: r([[14, 12]]),
+    }, [{ t: 0.4, kind: "handoff", to: "HB" }], "Handoff to the HB running left. FB leads around the corner; X runs his man off."),
+    P("p7splf", "Split Left Fake", "f7split", "run", {
+      ...lineLeft, QB: r([[0, -4.3], [-0.8, -4.8]], { speed: 3 }),
+      FB: r([[0.5, -3.8], [0, -1], [0, 4]], { speed: 6 }),
+      HB: r([[-1.2, -4.6], [-5, -4], [-10, -1], [-12, 3], [-12, 16]], { speed: 6.3, delay: 0.5, curve: true, star: true }), X: r([[14, 12]]),
+    }, [{ t: 0.7, kind: "handoff", to: "HB" }], "FB runs up the middle like he's getting it. QB fakes to him, then hands to the HB going left."),
+    P("p7ladder", "Slot 4 Ladder", "f7slot", "pass", {
+      C: blk(0, -1.8), LG: blk(-2.4, -1.8), RG: blk(2.4, -1.8), RB: r([[1.5, -3.2]], { end: "block" }), QB: r([[0, -6.2]], { speed: 3 }),
+      X: r([[-14, 5.5], [-13.6, 4.5]], { speed: 6.3 }),
+      Y: r([[4, -2.6], [0, -2.8], [-3, -2.6], [-8, -0.5], [-11, 2.5], [-13.5, 4.8], [-15, 8], [-15.5, 18]], { speed: 6.5, curve: true, motion: true, star: true }),
+    }, [{ t: 2, kind: "pass", to: "X" }, { t: 3.6, kind: "pitch", to: "Y" }],
+      "Y goes in motion; snap as he gets just past the QB. X runs a 4 (hitch) and catches it. Y circles around behind X and takes the pitch to the end zone.", { snap: 1.4, goal: 14 }),
+  ];
+  return { formations, plays };
 }
 
 // ---------------------------------------------------------------- state
@@ -330,6 +378,15 @@ if (book.version < 3) {
   const jet = book.plays.find((p) => p.id === "p7jet");
   if (jet && !jet.snap && jet.paths?.H && !jet.paths.H.motion) { jet.paths.H.motion = true; jet.snap = JET_SNAP; jet.notes = "H goes in motion. Snap as he gets to the QB, hand it off on the run, and Y and Z block the edge."; }
   book.version = 3;
+}
+// v4: the coach's Gun Split / Gun Slot plays. The old starter Reverse is replaced by Split X Reverse.
+if (book.version < 4) {
+  const cp = coachPlays();
+  for (const f of cp.formations) if (!book.formations.some((x) => x.id === f.id)) book.formations.push(f);
+  for (const p of cp.plays) { const i = book.plays.findIndex((q) => q.id === p.id); if (i >= 0) book.plays[i] = p; else book.plays.push(p); }
+  const trick = book.packages.find((k) => k.id === "pk_trick");
+  if (trick && !trick.playIds.includes("p7ladder")) trick.playIds.push("p7ladder");
+  book.version = 4;
 }
 const prefs = store.get(PREFS, {});
 const state = {
@@ -366,7 +423,7 @@ function role(pos, format) {
   if (/^(LT|LG|RG|RT)$/.test(pos) || (pos === "C" && format === "11")) return "line";
   if (/^(LE|RE|DE|DT|NT)$/.test(pos)) return "dline";
   if (pos === "QB") return "qb";
-  if (/^(RB|TB|FB)$/.test(pos)) return "back";
+  if (/^(RB|TB|FB|HB)$/.test(pos)) return "back";
   if (pos === "R" || /LB$/.test(pos)) return "lb";
   if (/(CB|S)$/.test(pos)) return "db";
   if (pos === "TE") return "te";
@@ -414,6 +471,16 @@ function pathDuration(spot, path, fmt, snap = 0) {
   return (path.motion ? 0 : snap) + (path.delay || 0) + L / pathSpeed(path, spot.pos, fmt);
 }
 const DASH = { solid: "", dotted: "0.01 0.55", dashed: "0.9 0.55" };
+/** The team's route numbers. pts(spot, inn): inn = +1 if "in" (toward the middle) is to the right, -1 if to the left. Yards are from the line of scrimmage. */
+const ROUTES = [
+  { n: "2", name: "Slant", pts: (s, inn) => [[s.x, 1.5], [s.x + inn * 6, 6]] },
+  { n: "3", name: "Out", pts: (s, inn) => [[s.x, 5], [s.x - inn * 5, 5]] },
+  { n: "4", name: "Hitch", pts: (s, inn) => [[s.x, 5.5], [s.x + inn * 0.5, 4.5]] },
+  { n: "7", name: "Corner", pts: (s, inn) => [[s.x, 7], [s.x - inn * 6, 13]] },
+  { n: "8", name: "Post", pts: (s, inn) => [[s.x, 7], [s.x + inn * 6, 14]] },
+  { n: "9", name: "Go", pts: (s) => [[s.x, 20]] },
+  { n: "0", name: "Smoke", pts: (s, inn) => [[s.x + inn * 0.6, s.y - 0.8]] },
+];
 const PALETTE = ["#ffffff", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
 const textOn = (hex) => { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#0b1220" : "#ffffff"; };
 const starPoints = (cx, cy, R, r = R * 0.48) => Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, d = i % 2 ? r : R; return `${cx + d * Math.cos(a)},${cy + d * Math.sin(a)}`; }).join(" ");
@@ -515,6 +582,13 @@ function draw() {
   if (!f) { svg.innerHTML = s + `<text x="0" y="${sy(6)}" text-anchor="middle" font-size="2" fill="#fff" opacity=".8">Pick a formation or a play</text>`; return; }
   const t = state.t;
   const editing = state.mode === "edit";
+  // End zone (plays that go for the TD)
+  if (play?.goal) {
+    const W2 = WIDTH[fmt] / 2, gy = play.goal;
+    s += `<rect x="${-W2}" y="0" width="${WIDTH[fmt]}" height="${sy(gy)}" fill="#1d4ed8" opacity=".38"/>`;
+    s += `<line x1="${-W2}" x2="${W2}" y1="${sy(gy)}" y2="${sy(gy)}" stroke="#fff" stroke-width="0.45"/>`;
+    s += `<text x="0" y="${sy(gy + Math.min(5, (TOP - gy) / 2)) + 0.8}" text-anchor="middle" font-size="2.4" font-weight="900" fill="#fff" opacity=".85" letter-spacing="0.4">END ZONE</text>`;
+  }
   const g = ghostFormation(f);
   if (g) for (const sp of g.spots) {
     s += `<g opacity=".5"><circle cx="${sp.x}" cy="${sy(sp.y)}" r="0.85" fill="none" stroke="#fff" stroke-width="0.16" stroke-dasharray="0.3 0.25"/><text x="${sp.x}" y="${sy(sp.y) + 0.32}" font-size="0.75" text-anchor="middle" fill="#fff" font-weight="700">${esc(sp.pos)}</text></g>`;
@@ -748,12 +822,15 @@ function renderDetails() {
   if (p) {
     h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(p.notes) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
     h += `<div class="box"><h3>Packages</h3>${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(p.id) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
-      ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>` : ""}</div>`;
+      ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+      <div class="row"><label>End zone</label><select id="pgoal">${[["", "None"], ["5", "5 yds away"], ["10", "10 yds away"], ["14", "14 yds away"], ["20", "20 yds away"]].map(([v, l]) => `<option value="${v}" ${String(p.goal || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}</div>`;
   }
+  if (f.side === "O") h += `<div class="box"><h3>Route numbers</h3><div class="chips">${ROUTES.map((rt) => `<span class="chip"><b>${rt.n}</b> ${rt.name}</span>`).join("")}</div>${editing && state.editMode === "play" ? `<p class="hint">Tap a receiver, then a number under <b>Player</b> to draw that route.</p>` : ""}</div>`;
   if (editing && p && state.editMode === "play") {
     const sel = state.selPos, path = sel ? p.paths[sel] : null;
     const opt = (name, cur, items) => `<div class="seg" data-opt="${name}">${items.map(([v, label]) => `<button data-v="${v}" aria-pressed="${String(cur) === v}">${label}</button>`).join("")}</div>`;
     h += `<div class="box"><h3>${sel ? `Player: ${esc(sel)}` : "Player"}</h3>${sel ? `
+      ${f.side === "O" ? `<div class="row"><label>Route</label><span class="swatches">${ROUTES.map((rt) => `<button class="btn sm" data-route="${rt.n}" title="${rt.name}">${rt.n} ${rt.name}</button>`).join("")}</span></div>` : ""}
       <div class="row"><label>Line</label>${opt("curve", path?.curve ? "1" : "0", [["0", "Straight"], ["1", "Curved"]])}</div>
       <div class="row"><label>Style</label>${opt("dash", path?.dash || "solid", [["solid", "Solid"], ["dotted", "Dotted"], ["dashed", "Dashed"]])}</div>
       <div class="row"><label>End</label>${opt("end", pathEnd(path, sel, f.format), [["arrow", "→ Running"], ["block", "⊥ Blocking"]])}</div>
@@ -790,6 +867,7 @@ $("#details").addEventListener("change", (e) => {
   const pk = e.target.dataset.inpk;
   if (pk && p) { const k = book.packages.find((x) => x.id === pk); if (k) { k.playIds = e.target.checked ? [...k.playIds, p.id] : k.playIds.filter((id) => id !== p.id); save(); renderSidebar(); } }
   if (e.target.id === "ptype" && p) { p.type = e.target.value; save(); renderSidebar(); renderTitle(); }
+  if (e.target.id === "pgoal" && p) { if (e.target.value) p.goal = +e.target.value; else delete p.goal; save(); draw(); }
   if (e.target.id === "pend" && p && state.selPos) { (p.paths[state.selPos] ||= { pts: [] }).end = e.target.value; save(); draw(); }
   const lp = e.target.dataset.lineup;
   if (lp != null && f) { f.lineup ||= {}; if (e.target.value) f.lineup[lp] = e.target.value; else delete f.lineup[lp]; save(); draw(); }
@@ -812,6 +890,17 @@ $("#details").addEventListener("click", (e) => {
         for (const q of Object.values(p.paths)) delete q.star; // one ball carrier per play
         if (on) path.star = true;
       }
+      save(); setT(state.t); renderDetails();
+    }
+  }
+  const rb = e.target.closest("[data-route]");
+  if (rb && state.selPos) {
+    const f = currentFormation(), spot = f.spots.find((s) => s.pos === state.selPos);
+    const rt = ROUTES.find((x) => x.n === rb.dataset.route);
+    if (spot && rt) {
+      const path = (p.paths[state.selPos] ||= { pts: [] });
+      path.pts = rt.pts(spot, spot.x < 0 ? 1 : spot.x > 0 ? -1 : 1); // +1 = toward the middle
+      path.curve = false; path.end = "arrow";
       save(); setT(state.t); renderDetails();
     }
   }
