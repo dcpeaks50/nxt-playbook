@@ -616,6 +616,13 @@ function flagPlays() {
       H: r([[4, -2.7], [0, -2.9], [-3, -2.7], [-8.5, -1.4], [-12.5, 0], [-17, 1.2], [-19, 5], [-19, 18]], { speed: 6.5, curve: true, motion: true, star: true }),
     }, [{ t: 2, kind: "pass", to: "X" }, { t: 3.75, kind: "pitch", to: "H" }],
       "H goes in motion across; snap as he gets just past the QB. X runs a 4 (hitch) and catches it. H circles underneath and outside X, about 4 yards away, and X pitches it back to him. A's seam and Z's 9 clear it out.", { snap: 1.4, goal: 14 }),
+    P("fl_tornado_r", "Split Right Tornado", "fl_split_r", "run", {
+      C: blk(1.8, 1.2), QB: r([[0.3, -4.8]], { speed: 3 }),
+      H: r([[4, -3.6], [0.8, -4.3], [-5, -4], [-10, -1], [-12, 3], [-12, 16]], { speed: 6.5, curve: true, star: true }),
+      Y: r([[5, 1], [10, 2]]), Z: r([[15, 4], [17, 10]]), A: r([[-4, 0.5], [3, 2.5]]),
+      X: r([[-15, 16]]),
+    }, [{ t: 1.25, kind: "handoff", to: "H" }],
+      "Tornado: everybody flows right at the snap (C, Y, Z, and A coming across from the left slot) while H, the right slot, turns back, takes the handoff behind the QB and runs left and up the field. X runs his corner off to empty the left side."),
   ];
 
   // Left versions: mirror every formation and play (H and Y go to the left, the call side).
@@ -742,6 +749,15 @@ if (book.version < 11) {
 if (book.version < 12) {
   for (const f of book.formations) if (f.id === "f11i" || f.id === "f11g") { const qb = f.spots.find((s) => s.pos === "QB"); if (qb && qb.x === 0 && qb.y === -1.6) qb.y = -2.5; }
   book.version = 12;
+}
+// v13: Split Right / Left Tornado.
+if (book.version < 13) {
+  const fp = flagPlays();
+  for (const id of ["fl_tornado_r", "fl_tornado_l"]) {
+    if (!book.plays.some((x) => x.id === id)) book.plays.push(fp.plays.find((p) => p.id === id));
+    const flag = book.packages.find((k) => k.id === "pk_flag"); if (flag && !flag.playIds.includes(id)) flag.playIds.push(id);
+  }
+  book.version = 13;
 }
 }
 const prefs = store.get(PREFS, {});
