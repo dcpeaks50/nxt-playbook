@@ -596,6 +596,45 @@ function ballAt(play, f, t) {
   const p = playerPos(play, f, holder, t);
   return { x: p.x + 0.55, y: p.y + 0.2, air: 0, holder };
 }
+/** Make the ball end up with `pos` (the player with the ★). Returns a short note saying what changed. */
+function retargetBall(p, f, pos) {
+  if (!f || f.side !== "O") return "";
+  const evs = (p.events || []).slice().sort((a, b) => a.t - b.t);
+  const snap = p.snap || 0;
+  if (pos === "QB") { if (!evs.length) return ""; p.events = []; return "QB keeps it: handoffs and passes removed."; }
+  const idx = evs.findIndex((e) => e.to === pos);
+  if (idx >= 0) {
+    if (idx === evs.length - 1) return "";
+    p.events = evs.slice(0, idx + 1);
+    return `Ball now stays with ${pos} (later handoffs/pitches removed).`;
+  }
+  // Replace the last exchange (or add the first one) so it goes to the starred player.
+  const last = evs.at(-1), before = last ? evs.slice(0, -1) : [];
+  const r = role(pos, f.format);
+  let kind = last?.kind === "pitch" ? "pitch" : r === "back" ? "handoff" : "pass";
+  const test = { ...p, events: before };
+  const from = before.length ? before.at(-1).t : snap;
+  let t0 = from + 0.3; // the first moment the current holder actually has the ball
+  for (let t = from; t < from + 3; t += 0.05) { const b = ballAt(test, f, t); if (b && !b.flying && (before.length || t > snap)) { t0 = t + 0.15; break; } }
+  let t;
+  if (kind === "pass") {
+    const spot = f.spots.find((s) => s.pos === pos), end = pathDuration(spot, p.paths?.[pos], f.format, snap);
+    t = Math.max(t0 + 0.4, Math.min(snap + 2.6, end ? snap + (end - snap) * 0.6 : snap + 1.8));
+  } else {
+    // Hand off / pitch when the runner comes closest to whoever has the ball.
+    let best = null;
+    for (let tt = t0; tt < t0 + 3; tt += 0.05) {
+      const b = ballAt(test, f, tt); if (!b || b.flying) continue;
+      const q = playerPos(p, f, pos, tt), g = Math.hypot(b.x - 0.55 - q.x, b.y - 0.2 - q.y);
+      if (!best || g < best.g) best = { t: tt, g };
+    }
+    t = best ? best.t : t0;
+    if (kind === "handoff" && best && best.g > 2.5) kind = "pitch";
+  }
+  t = Math.round(t * 20) / 20;
+  p.events = [...before, { t, kind, to: pos }];
+  return `Ball now goes to ${pos}: ${kind} at ${t.toFixed(1)}s.`;
+}
 function playDuration(play, f) {
   if (!play || !f) return 0;
   let d = 0;
@@ -1009,12 +1048,14 @@ $("#details").addEventListener("click", (e) => {
         if (k === "curve") path.curve = v === "1"; else path[k] = v;
       }
       if (sw) { if (sw.dataset.color) path.color = sw.dataset.color; else delete path.color; }
+      let note = "";
       if (e.target.id === "pstar") {
         const on = !path.star;
         for (const q of Object.values(p.paths)) delete q.star; // one ball carrier per play
-        if (on) path.star = true;
+        if (on) { path.star = true; note = retargetBall(p, currentFormation(), state.selPos); }
       }
       save(); setT(state.t); renderDetails();
+      if (note) { const box = [...document.querySelectorAll("#details .box h3")].find((h) => h.textContent === "The ball")?.parentElement; if (box) box.insertAdjacentHTML("afterbegin", `<p class="hint" style="margin:0 0 6px;color:var(--accent)"><b>${esc(note)}</b></p>`); }
     }
   }
   const rb = e.target.closest("[data-route]");
