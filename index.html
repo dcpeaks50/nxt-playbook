@@ -120,6 +120,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <button data-v="all">All</button><button data-v="O">Offense</button><button data-v="D">Defense</button>
   </div>
   <div class="spacer"></div>
+  <button class="btn primary" id="btn-share">Share</button>
   <button class="btn" id="btn-print">Print / PDF</button>
   <button class="btn" id="btn-roster">Roster</button>
   <button class="btn" id="btn-export">Export</button>
@@ -203,6 +204,38 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
   </div>
 </dialog>
 <div id="printarea" aria-hidden="true"></div>
+
+<dialog id="sharedlg">
+  <div class="dlg-h"><h2>Share plays</h2><button class="btn" id="share-close">Close</button></div>
+  <div class="dlg-b">
+    <div class="box" style="margin-bottom:10px">
+      <h3>What to share</h3>
+      <label class="row"><input type="radio" name="swhat" value="one" checked> <span id="sw-one">This play</span></label>
+      <label class="row"><input type="radio" name="swhat" value="list"> <span id="sw-list">Plays in the list</span></label>
+      <label class="row"><input type="radio" name="swhat" value="all"> <span id="sw-all">Whole playbook</span></label>
+      <label class="row"><input type="checkbox" id="sroster"> Include roster names (who plays where)</label>
+    </div>
+    <button class="btn primary" id="share-make">Make the link</button>
+    <div id="share-out" hidden style="margin-top:12px">
+      <textarea id="share-link" readonly rows="3" style="font-size:12px"></textarea>
+      <div class="row"><button class="btn primary" id="share-copy">Copy link</button><button class="btn" id="share-native" hidden>Share…</button><span class="hint" id="share-size"></span></div>
+      <p class="hint">Send this link to coaches, players or parents. When they open it, they can add these plays to their playbook. Changed a play? Send a new link and their copy updates.</p>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="sharein">
+  <div class="dlg-h"><h2>Plays shared with you</h2></div>
+  <div class="dlg-b">
+    <p id="sharein-text" style="margin-top:0"></p>
+    <div class="row">
+      <button class="btn primary" id="sharein-add">Add to my playbook</button>
+      <button class="btn danger" id="sharein-replace">Replace my playbook</button>
+      <button class="btn" id="sharein-cancel">Not now</button>
+    </div>
+    <p class="hint">Adding keeps all your own plays. Plays you already got from this coach are updated to the new version.</p>
+  </div>
+</dialog>
 
 <dialog id="roster">
   <div class="dlg-h"><h2>Roster</h2><button class="btn" id="roster-close">Done</button></div>
@@ -1260,8 +1293,103 @@ function refresh() {
   if (!state.playId && state.mode !== "edit") state.playId = (visiblePlays()[0] || {}).id || null;
   renderSidebar(); renderTitle(); renderDetails(); setT(state.t);
 }
+// ---------------------------------------------------------------- share links (#share=…)
+const b64url = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const unb64url = (s) => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+async function packShare(obj) {
+  const json = JSON.stringify(obj);
+  if ("CompressionStream" in window) {
+    const buf = new Uint8Array(await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer());
+    return "z" + b64url(buf);
+  }
+  return "j" + b64url(new TextEncoder().encode(json));
+}
+async function unpackShare(s) {
+  const bytes = unb64url(s.slice(1));
+  if (s[0] === "z") return JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text());
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function sharePayload(what, withRoster) {
+  const plays = what === "one" ? [currentPlay()].filter(Boolean) : what === "list" ? visiblePlays() : book.plays;
+  const ids = new Set(plays.map((p) => p.id)), fids = new Set(plays.map((p) => p.formationId));
+  const formations = book.formations.filter((f) => what === "all" || fids.has(f.id)).map((f) => (withRoster ? f : { ...f, lineup: {} }));
+  const packages = book.packages.map((k) => ({ ...k, playIds: k.playIds.filter((id) => ids.has(id)) })).filter((k) => k.playIds.length || what === "all");
+  const title = what === "one" ? plays[0]?.name : what === "list" && state.pkg !== "all" ? book.packages.find((k) => k.id === state.pkg)?.name : what === "all" ? "Whole playbook" : `${plays.length} plays`;
+  return { nxt: 1, version: book.version, what, title, formations, plays, packages, ...(withRoster ? { roster: book.roster } : {}) };
+}
+$("#btn-share").onclick = () => {
+  const p = currentPlay(), list = visiblePlays();
+  $("#sw-one").textContent = p ? `This play: ${p.name}` : "This play (pick a play first)";
+  document.querySelector('input[name="swhat"][value="one"]').disabled = !p;
+  if (!p) document.querySelector('input[name="swhat"][value="list"]').checked = true;
+  $("#sw-list").textContent = `Plays in the list (${list.length})${state.pkg !== "all" ? `: ${book.packages.find((k) => k.id === state.pkg)?.name || ""}` : ""}`;
+  $("#sw-all").textContent = `Whole playbook (${book.plays.length} plays)`;
+  $("#share-out").hidden = true;
+  $("#sharedlg").showModal();
+};
+$("#share-close").onclick = () => $("#sharedlg").close();
+$("#share-make").onclick = async () => {
+  const what = document.querySelector('input[name="swhat"]:checked').value;
+  const data = sharePayload(what, $("#sroster").checked);
+  if (!data.plays.length) { alert("No plays to share."); return; }
+  const link = `${location.origin}${location.pathname}#share=${await packShare(data)}`;
+  $("#share-link").value = link;
+  $("#share-size").textContent = link.length > 6000 ? "Long link: email or a messaging app works best." : `${data.plays.length} play${data.plays.length > 1 ? "s" : ""}`;
+  $("#share-native").hidden = !navigator.share;
+  $("#share-out").hidden = false;
+  $("#share-link").select();
+};
+$("#share-copy").onclick = async () => {
+  try { await navigator.clipboard.writeText($("#share-link").value); } catch { $("#share-link").select(); document.execCommand("copy"); }
+  $("#share-copy").textContent = "Copied!"; setTimeout(() => ($("#share-copy").textContent = "Copy link"), 1500);
+};
+$("#share-native").onclick = () => navigator.share?.({ title: "NXT plays", url: $("#share-link").value }).catch(() => {});
+
+/** Bring shared plays in: add/update them by id (keeps everything else), or replace the whole playbook. */
+function mergeShared(data, replace) {
+  if (replace) {
+    book = { version: Math.max(book.version || 1, data.version || 1), roster: data.roster || book.roster, formations: data.formations, plays: data.plays, packages: data.packages || [] };
+  } else {
+    for (const f of data.formations) { const i = book.formations.findIndex((x) => x.id === f.id); if (i >= 0) book.formations[i] = { ...f, lineup: data.roster ? f.lineup : book.formations[i].lineup }; else book.formations.push(f); }
+    for (const p of data.plays) { const i = book.plays.findIndex((x) => x.id === p.id); if (i >= 0) book.plays[i] = p; else book.plays.push(p); }
+    for (const k of data.packages || []) {
+      const mine = book.packages.find((x) => x.id === k.id);
+      if (mine) mine.playIds = [...k.playIds, ...mine.playIds.filter((id) => !k.playIds.includes(id))];
+      else book.packages.push(k);
+    }
+    for (const kid of data.roster || []) if (!book.roster.some((x) => x.id === kid.id)) book.roster.push(kid);
+  }
+  save();
+}
+async function checkShareLink() {
+  const m = /^#share=(.+)$/.exec(location.hash);
+  if (!m) return;
+  let data;
+  try { data = await unpackShare(m[1]); if (!data?.nxt || !Array.isArray(data.plays)) throw new Error(); }
+  catch { alert("That share link didn't open. It may have been cut off; ask for it again."); history.replaceState(null, "", location.pathname); return; }
+  const n = data.plays.length;
+  $("#sharein-text").innerHTML = `A coach shared <b>${n} play${n > 1 ? "s" : ""}</b>${data.title ? ` (<b>${esc(data.title)}</b>)` : ""}.`;
+  $("#sharein-replace").hidden = data.what !== "all";
+  const done = (how) => {
+    if (how) mergeShared(data, how === "replace");
+    history.replaceState(null, "", location.pathname);
+    $("#sharein").close();
+    if (how) {
+      const first = data.plays[0], f = data.formations.find((x) => x.id === first.formationId) || formationById(first.formationId);
+      if (f) { state.format = f.format; state.side = "all"; state.formationId = null; state.type = "all"; state.pkg = data.what === "list" && data.packages?.length === 1 ? data.packages[0].id : "all"; }
+      state.playId = first.id; savePrefs(); refresh();
+    }
+  };
+  $("#sharein-add").onclick = () => done("add");
+  $("#sharein-replace").onclick = () => { if (confirm("Replace your whole playbook with this one?")) done("replace"); };
+  $("#sharein-cancel").onclick = () => done(null);
+  $("#sharein").showModal();
+}
+
 if (!state.playId) state.playId = (visiblePlays()[0] || {}).id || null;
 refresh();
+checkShareLink();
+window.addEventListener("hashchange", checkShareLink);
 </script>
 </body>
 </html>
