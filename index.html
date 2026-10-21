@@ -75,7 +75,7 @@ textarea{width:100%;min-height:64px;resize:vertical}
 .lineup{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .lineup label{display:flex;flex-direction:column;font-size:12px;font-weight:800;color:var(--muted);gap:3px}
 .hint{font-size:13px;color:var(--muted);margin:4px 0 0}
-.editbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:color-mix(in srgb,var(--gold) 14%,var(--panel));border-bottom:1px solid var(--line);font-size:14px}
+.editbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;min-height:96px;background:color-mix(in srgb,var(--gold) 14%,var(--panel));border-bottom:1px solid var(--line);font-size:14px}
 .events li{display:flex;align-items:center;gap:8px;margin:4px 0}
 .events{list-style:none;margin:0;padding:0}
 dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0;width:min(560px,94vw)}
@@ -1133,7 +1133,10 @@ const svg = $("#field");
 // Flip: show a play mirrored left-to-right (view only; "Save flipped copy" makes it a real play).
 const mirrorF = (f) => f && { ...f, spots: f.spots.map((s) => ({ ...s, x: -s.x })) };
 const mirrorP = (p) => p && { ...p, paths: Object.fromEntries(Object.entries(p.paths || {}).map(([k, v]) => [k, { ...v, pts: (v.pts || []).map(([x, y]) => [-x, y]) }])) };
-const viewFormation = () => (state.flip ? mirrorF(currentFormation()) : currentFormation());
+// A play can move players from where the formation puts them (play.align), without changing the other plays.
+const effFormation = (p, f) => (!f || !p?.align ? f : { ...f, spots: f.spots.map((s) => (p.align[s.pos] ? { ...s, x: p.align[s.pos][0], y: p.align[s.pos][1] } : s)) });
+const baseEditing = () => state.mode === "edit" && state.editMode === "formation";
+const viewFormation = () => { const f = baseEditing() ? currentFormation() : effFormation(currentPlay(), currentFormation()); return state.flip ? mirrorF(f) : f; };
 const viewPlay = () => (state.flip ? mirrorP(currentPlay()) : currentPlay());
 const flipName = (name) => { const n = name.replace(/\b(Right|Left|right|left)\b/g, (w) => ({ Right: "Left", Left: "Right", right: "left", left: "right" }[w])); return n === name ? name + " (flipped)" : n; };
 function ghostFormation(f) {
@@ -1235,7 +1238,13 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
     s += `<polyline points="${pts.map((p) => `${p.x},${sy(p.y)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="${sel ? 0.34 : 0.24}" stroke-linejoin="round" stroke-linecap="round" opacity="${t > 0 && !editing ? 0.45 : 0.95}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
     const a = pts[pts.length - 2], b = pts[pts.length - 1];
     s += pathEnd(path, sp.pos, f.format) === "block" ? blockEnd(a, b, col) : arrowHead(a, b, col);
-    if (editing && state.editMode === "play" && sel) path.pts.forEach(([x, y], i) => { s += `<circle data-wp data-pos="${esc(sp.pos)}" data-i="${i}" cx="${x}" cy="${sy(y)}" r="0.55" fill="${col}" stroke="#111" stroke-width="0.12" style="cursor:grab"/>`; });
+    // Handles for the picked player's line: small hollow rings on the bends; the arrow tip itself is the end handle (invisible hit area).
+    if (editing && state.editMode === "play" && sel) path.pts.forEach(([x, y], i) => {
+      const end = i === path.pts.length - 1;
+      s += end
+        ? `<circle data-wp data-pos="${esc(sp.pos)}" data-i="${i}" cx="${x}" cy="${sy(y)}" r="0.9" fill="transparent" style="cursor:crosshair"/>`
+        : `<circle data-wp data-pos="${esc(sp.pos)}" data-i="${i}" cx="${x}" cy="${sy(y)}" r="0.32" fill="#0b1220" fill-opacity="0.35" stroke="${col}" stroke-width="0.14" style="cursor:grab"/><circle data-wp data-pos="${esc(sp.pos)}" data-i="${i}" cx="${x}" cy="${sy(y)}" r="0.75" fill="transparent" style="cursor:grab"/>`;
+    });
   }
   // the line being drawn right now (click-and-drag)
   if (editing && drag?.kind === "draw" && drag.moved && drag.cur) {
@@ -1281,7 +1290,7 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
 // ---------------------------------------------------------------- playback
 let last = 0;
 function setT(t) {
-  const d = playDuration(currentPlay(), currentFormation());
+  const d = playDuration(currentPlay(), viewFormation());
   state.t = Math.max(0, Math.min(d, t));
   $("#scrub").value = d ? Math.round((state.t / d) * 1000) : 0;
   $("#time").textContent = `${state.t.toFixed(1)}s / ${d.toFixed(1)}s`;
@@ -1293,7 +1302,7 @@ function setT(t) {
 function tick(ts) {
   if (!state.playing) return;
   const dt = last ? (ts - last) / 1000 : 0; last = ts;
-  const d = playDuration(currentPlay(), currentFormation());
+  const d = playDuration(currentPlay(), viewFormation());
   if (state.t >= d) { setPlaying(false); return; }
   setT(state.t + dt * state.rate);
   requestAnimationFrame(tick);
@@ -1303,12 +1312,12 @@ function setPlaying(on) {
   state.playing = on;
   $("#btn-play").textContent = on ? "❚❚" : "▶";
   $("#btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
-  if (on) { if (state.t >= playDuration(currentPlay(), currentFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
+  if (on) { if (state.t >= playDuration(currentPlay(), viewFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
 }
 $("#btn-play").onclick = () => setPlaying(!state.playing);
 $("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
 $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
-$("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(currentPlay(), currentFormation())); };
+$("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(currentPlay(), viewFormation())); };
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input,textarea,select")) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && state.mode === "edit") { e.preventDefault(); undo(); return; }
@@ -1469,7 +1478,7 @@ function renderTitle() {
   $("#btn-undo").disabled = !undoStack.length;
   $("#edit-hint").textContent = state.editMode === "formation"
     ? "Drag players to set the formation. Every play in this formation starts from here."
-    : state.selPos ? `Drag from ${state.selPos} to draw their line, one piece at a time. Drag a dot to move it; tap a dot to delete it and everything after it.` : "Press on a player and drag to draw their line.";
+    : state.selPos ? `${state.selPos} picked. Drag on the field to draw his line (it continues from the arrow). Drag any player to move him. Drag a ring to bend the line; tap a ring or the arrow tip to delete from there.` : "Drag a player to move him (this play only). Tap a player to pick him, then drag on the field to draw his route or block.";
 }
 function renderDetails() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
@@ -1546,7 +1555,7 @@ $("#details").addEventListener("click", (e) => {
       if (e.target.id === "pstar") {
         const on = !path.star;
         for (const q of Object.values(p.paths)) delete q.star; // one ball carrier per play
-        if (on) { path.star = true; note = retargetBall(p, currentFormation(), state.selPos); }
+        if (on) { path.star = true; note = retargetBall(p, effFormation(p, currentFormation()), state.selPos); }
       }
       save(); setT(state.t); renderDetails();
       if (note) { const box = [...document.querySelectorAll("#details .box h3")].find((h) => h.textContent === "The ball")?.parentElement; if (box) box.insertAdjacentHTML("afterbegin", `<p class="hint" style="margin:0 0 6px;color:var(--accent)"><b>${esc(note)}</b></p>`); }
@@ -1554,7 +1563,7 @@ $("#details").addEventListener("click", (e) => {
   }
   const rb = e.target.closest("[data-route]");
   if (rb && state.selPos) {
-    const f = currentFormation(), spot = f.spots.find((s) => s.pos === state.selPos);
+    const f = effFormation(p, currentFormation()), spot = f.spots.find((s) => s.pos === state.selPos);
     const rt = ROUTES.find((x) => x.n === rb.dataset.route);
     if (spot && rt) {
       const path = (p.paths[state.selPos] ||= { pts: [] });
@@ -1595,12 +1604,12 @@ svg.addEventListener("pointerdown", (e) => {
     drag = isEnd ? { kind: "draw", pos: wp.dataset.pos, start: pt, cur: null, moved: false, wpIndex: i } : { kind: "wp", pos: wp.dataset.pos, i, start: pt, moved: false };
     svg.setPointerCapture(e.pointerId); return;
   }
-  // Press on a player (or anywhere once a player is picked) and drag to draw the next piece of their line.
-  // A plain click on a player just picks them; a plain click on the field adds a point there.
-  const pos = pl ? pl.dataset.pl : state.selPos;
+  // Drag a player: move him (this play only; his route moves with him). Tap a player: pick him.
+  if (pl) { drag = { kind: "move", pos: pl.dataset.pl, start: pt, moved: false }; svg.setPointerCapture(e.pointerId); return; }
+  // With a player picked, drag on the field to draw the next piece of his line (a plain click adds a point).
+  const pos = state.selPos;
   if (!pos) return;
-  if (pl && state.selPos !== pos) { state.selPos = pos; renderTitle(); renderDetails(); }
-  drag = { kind: "draw", pos, start: pt, cur: null, moved: false, onPlayer: !!pl };
+  drag = { kind: "draw", pos, start: pt, cur: null, moved: false };
   svg.setPointerCapture(e.pointerId);
   draw();
 });
@@ -1614,6 +1623,19 @@ svg.addEventListener("pointermove", (e) => {
     const pts = p.paths[drag.pos]?.pts; if (drag.moved && pts?.[drag.i]) pts[drag.i] = [x, y];
   }
   if (drag.kind === "draw") { drag.cur = { x, y }; if (dist(drag.start, drag.cur) > 0.75) drag.moved = true; }
+  if (drag.kind === "move" && p) {
+    // (Don't re-render the panels mid-drag: that can shift the field under your finger.)
+    if (!drag.moved && dist(drag.start, toField(e)) > 0.6) { drag.moved = true; state.selPos = drag.pos; }
+    if (drag.moved) {
+      const cur = effFormation(p, f).spots.find((s) => s.pos === drag.pos);
+      const dx = x - cur.x, dy = y - cur.y;
+      if (dx || dy) {
+        (p.align ||= {})[drag.pos] = [x, y];
+        const path = p.paths[drag.pos];
+        if (path?.pts) path.pts = path.pts.map(([px, py]) => [px + dx, py + dy]); // his route comes with him
+      }
+    }
+  }
   draw();
 });
 const endDrag = (e) => {
@@ -1626,10 +1648,14 @@ const endDrag = (e) => {
     if (path) path.pts = path.pts.slice(0, i);
     save(); setT(state.t); renderDetails(); return;
   }
+  if (d.kind === "move") {
+    if (!d.moved) { state.selPos = d.pos; renderTitle(); renderDetails(); draw(); return; } // a tap just picks him
+    save(); setT(state.t); renderTitle(); renderDetails(); return;
+  }
   if (d.kind === "draw") {
-    const p = currentPlay(), f = currentFormation();
-    // Dragged: the line ends where you let go. Clicked on the field: a point there. Clicked a player: just picked.
-    const end = d.moved ? d.cur : d.onPlayer ? null : clampPt(f, d.start);
+    const p = currentPlay(), f = effFormation(p, currentFormation());
+    // Dragged: the line ends where you let go. Clicked on the field: a point there.
+    const end = d.moved ? d.cur : clampPt(f, d.start);
     if (p && end) {
       const path = (p.paths[d.pos] ||= { pts: [] });
       const last = routePts(f.spots.find((q) => q.pos === d.pos), path).at(-1);
@@ -1699,7 +1725,7 @@ $("#print-go").onclick = () => {
   for (let i = 0; i < plays.length; i += per) {
     html += `<section class="ppage" style="grid-template-columns:repeat(${grid[0]},1fr);grid-template-rows:repeat(${grid[1]},minmax(0,1fr))">`;
     plays.slice(i, i + per).forEach(({ p: p0, L }, j) => {
-      const f0 = formationById(p0.formationId);
+      const f0 = effFormation(p0, formationById(p0.formationId));
       const f = L ? mirrorF(f0) : f0, p = L ? mirrorP(p0) : p0;
       const W = WIDTH[f.format];
       const other = book.formations.find((g) => g.format === f.format && g.side !== f.side);
