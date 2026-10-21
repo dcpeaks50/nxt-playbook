@@ -669,6 +669,25 @@ function flagPlaysV2() {
     }, [{ t: 0.7, kind: "handoff", to: "A" }], "Everything looks like Load Power to the heavy side. H fakes it, A takes the handoff back the other way, and Y pulls across to lead him."),
   ];
 }
+/** Pro's two runs (split backs: H right, A left; Z off the line, wider). Drawn called Right. */
+function proRuns() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  return [
+    { id: "fl_prolead_r", name: "Pro Lead", formationId: "fl_pro_r", type: "run", paths: {
+      C: blk(0, 1.2), Y: blk(2, 1.3), Z: blk(12.5, 3), X: r([[-15, 10]]), QB: r([[-0.4, -5.3]], { speed: 3 }),
+      H: r([[3.6, -3.5], [4.3, -0.5], [5.8, 1.8]], { speed: 7, end: "block" }),
+      A: r([[-1, -5.8], [1, -5], [3, -2.5], [3.5, 1], [4, 12]], { speed: 6.3, delay: 0.15, curve: true, star: true }),
+    }, events: [{ t: 0.6, kind: "handoff", to: "A" }],
+      notes: "Inside handoff to the call side, not a sweep. A (the back away from the call) takes it and hits the hole outside Y. H leads through first and has to get out of there fast. Y and C block down, Z takes the corner, X runs his man off." },
+    { id: "fl_procross_r", name: "Pro Cross", formationId: "fl_pro_r", type: "run", paths: {
+      C: blk(0.5, 1.2), Y: blk(2, 1.3), Z: blk(12.5, 3), X: r([[-15, 10]]), QB: r([[-0.4, -5.1], [0.4, -5.4]], { speed: 3 }),
+      H: r([[1, -5.4], [-3, -4.4], [-5.5, -1]], { speed: 6.3, dash: "dotted" }),
+      A: r([[-1.5, -6.6], [1.3, -5.8], [3.2, -2.5], [3.6, 1], [4, 12]], { speed: 6.3, delay: 0.45, curve: true, star: true }),
+    }, events: [{ t: 1.05, kind: "handoff", to: "A" }],
+      notes: "Backs cross. QB fakes to H crossing left in front of him (dotted = fake, no ball), then hands to A coming behind, who hits it to the call side outside Y. Y and C block down, Z takes the corner, X runs off." },
+  ];
+}
 /** Extra point plays (their own thing, kept out of the 16). Run from the 5: end zone 5 yards away. */
 function flagXP() {
   const r = (pts, o = {}) => ({ pts, ...o });
@@ -856,6 +875,23 @@ if (book.version < 17) {
   retime("fl_zrev_r", "A", 0.6, 0.8); retime("fl_zrev_r", "Z", 1.25, 1.35);
   retime("fl_hpass_r", "H", 0.45, 0.55);
   book.version = 17;
+}
+// v18: Pro runs are Pro Lead and Pro Cross (Pro H Sweep removed); Z lines up wider in Pro.
+if (book.version < 18) {
+  const pro = book.formations.find((f) => f.id === "fl_pro_r");
+  const z = pro?.spots.find((s) => s.pos === "Z");
+  const dz = z && z.x === 9 ? 2 : 0;
+  if (dz) z.x = 11;
+  for (const p of book.plays.filter((q) => q.formationId === "fl_pro_r" && q.id !== "fl_xprace_r")) {
+    const zp = p.paths?.Z; if (dz && zp?.pts) zp.pts = zp.pts.map(([x, y]) => [x + dz, y]);
+  }
+  const race = book.plays.find((p) => p.id === "fl_xprace_r");
+  if (race && dz) { race.snap = 1.1; const ev = race.events.find((e) => e.kind === "pass"); if (ev) ev.t = 1.65; }
+  const zr = book.plays.find((p) => p.id === "fl_zrev_r")?.events.find((e) => e.to === "Z" && e.t === 1.35); if (zr && dz) zr.t = 1.5;
+  book.plays = book.plays.filter((p) => p.id !== "fl_prosweep_r");
+  for (const p of proRuns()) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
+  for (const k of book.packages) { const i = k.playIds.indexOf("fl_prosweep_r"); if (i >= 0) k.playIds.splice(i, 1, "fl_prolead_r"); }
+  book.version = 18;
 }
 }
 const prefs = store.get(PREFS, {});
