@@ -855,6 +855,56 @@ function bunchBobbleHead() {
     options: [{ name: "C", paths: withStar("C"), events: [{ t: BOBBLE_T.c, kind: "pass", to: "C" }],
       notes: "Same play. The left corner ran with A on the wheel, so C is open: throw it to him as he curves out at 7 yards." }] };
 }
+/** Shane: single back, QB under center, C with a guard on each side, X and Z wide on the line. */
+const SHANE_T = { pitch: 0.5, give: 0.55, revGive: 0.4, revX: 1.55, fakeGive: 0.4, slant: 1.1, out: 1.3, screen: 1.2, go: 2.2, corner: 2.4, screen2: 1.3 };
+function shaneBook() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  const T = SHANE_T;
+  const formation = { id: "fl_shane_r", name: "Shane", format: "7", side: "O", lineup: {},
+    spots: [["X", -15, -0.7], ["LG", -2, -0.7], ["C", 0, -0.7], ["RG", 2, -0.7], ["Z", 15, -0.7], ["QB", 0, -2.3], ["RB", 0, -7]].map(([pos, x, y]) => ({ pos, x, y })) };
+  const star = (paths, pos) => Object.fromEntries(Object.entries(JSON.parse(JSON.stringify(paths))).map(([k, v]) => { if (k === pos) v.star = true; else delete v.star; return [k, v]; }));
+  // X comes back behind the backfield on the reverse (the run starts left, the reverse goes right).
+  const xRev = [[-13, -3], [-8, -6.5], [-3, -7.8], [3, -7.5], [9, -4.5], [11, 0], [11, 14]];
+  const sweep = { id: "fl_shanesweep_r", name: "Shane Sweep", formationId: "fl_shane_r", type: "run", optName: "Sweep",
+    paths: { QB: r([[0.8, -3]], { speed: 3 }), RB: r([[3, -6.6], [9, -5.2], [13, -2], [14, 2], [14, 15]], { speed: 6.5, curve: true, star: true }),
+      C: blk(1.5, 1), LG: blk(-0.5, 1), RG: blk(4, 1), Z: blk(13, 2.5), X: blk(-13, 2) },
+    events: [{ t: T.pitch, kind: "pitch", to: "RB" }],
+    notes: "QB turns and pitches it to the RB running to the right. Everybody else blocks: the line blocks to the right, Z seals the corner inside, X blocks his man on the back side.",
+    options: [
+      { name: "Handoff", paths: { QB: r([[0.6, -3.4]], { speed: 3 }), RB: r([[0.6, -5], [2, -2.6], [2.8, 1], [3, 14]], { speed: 6.3, curve: true, star: true }),
+          C: blk(-0.5, 1), LG: blk(-2, 1), RG: blk(4, 1), Z: blk(14, 3), X: blk(-14, 3) },
+        events: [{ t: T.give, kind: "handoff", to: "RB" }],
+        notes: "Same look, but not a sweep: QB hands it straight to the RB, who hits it up inside, just outside the right guard. C and LG block down, RG blocks out, X and Z block their men." },
+      { name: "Reverse", paths: { QB: r([[-0.6, -3.4]], { speed: 3 }), RB: r([[-1, -5], [-5, -5.6], [-8, -5.6]], { speed: 6 }), X: r(xRev, { speed: 7, delay: 0.3, curve: true, star: true }),
+          C: blk(0.5, 1), LG: blk(-1.5, 1), RG: blk(2.5, 1), Z: blk(13, 3) },
+        events: [{ t: T.revGive, kind: "handoff", to: "RB" }, { t: T.revX, kind: "handoff", to: "X" }],
+        notes: "QB hands to the RB running left. X comes back the other way behind him, takes it from the RB, and runs the reverse around the right side. Line blocks, Z seals the corner." },
+      { name: "Fake Reverse", paths: { QB: r([[-0.6, -3.4]], { speed: 3 }), RB: r([[-1, -5], [-5, -5.6], [-8, -5.6], [-11, -3], [-12, 1], [-12, 14]], { speed: 6, curve: true, star: true }),
+          X: r(xRev, { speed: 7, delay: 0.3, curve: true, dash: "dotted" }), C: blk(-1.5, 1), LG: blk(-3.5, 1), RG: blk(1, 1), Z: r([[15, 12]]) },
+        events: [{ t: T.fakeGive, kind: "handoff", to: "RB" }],
+        notes: "Looks just like the Reverse. The RB fakes it to X coming back (dotted = fake, no ball) and keeps it around the left side. The line blocks left, Z runs his man off." },
+    ] };
+  const pass1 = { QB: r([[0, -5]], { speed: 3 }), X: r([[-15, 4], [-19, 4]]), Z: r([[15, 1], [11, 4], [7, 6]]), RB: r([[8, -6.8], [13, -6.5]]),
+    C: blk(0, 1), LG: blk(-2, 1), RG: blk(2, 1) };
+  const quick = { id: "fl_shanequick_r", name: "Shane Quick", formationId: "fl_shane_r", type: "pass", optName: "Slant",
+    paths: star(pass1, "Z"), events: [{ t: T.slant, kind: "pass", to: "Z" }],
+    notes: "QB takes 3 steps. Z runs a 2 (slant), X runs a 3 (out) on the other side, and the RB runs straight out to the right for the screen. The line blocks.",
+    options: [
+      { name: "Out", paths: star(pass1, "X"), events: [{ t: T.out, kind: "pass", to: "X" }], notes: "Same play, throw it to X on the 3 (out) to the left." },
+      { name: "Screen", paths: star(pass1, "RB"), events: [{ t: T.screen, kind: "pass", to: "RB" }], notes: "Same play, throw it to the RB running out to the right. Z's slant takes his man inside out of the way." },
+    ] };
+  const pass2 = { QB: r([[0, -6]], { speed: 3 }), X: r([[-15, 20]]), Z: r([[15, 1], [11, 7], [15, 12]]), RB: r([[9, -6.8], [15, -6.3]]),
+    C: blk(0, 1), LG: blk(-2, 1), RG: blk(2, 1) };
+  const pc = { id: "fl_shanepc_r", name: "Shane Post Corner", formationId: "fl_shane_r", type: "pass", optName: "Corner",
+    paths: star(pass2, "Z"), events: [{ t: T.corner, kind: "pass", to: "Z" }],
+    notes: "Z angles in toward the middle like a post, then breaks back out to the corner. X runs a 9 (go) on the other side. The RB runs straight out to the right for the screen. The line blocks.",
+    options: [
+      { name: "Go", paths: star(pass2, "X"), events: [{ t: T.go, kind: "pass", to: "X" }], notes: "Same play, throw it deep to X on the 9 (go)." },
+      { name: "Screen", paths: star(pass2, "RB"), events: [{ t: T.screen2, kind: "pass", to: "RB" }], notes: "Same play, dump it to the RB out to the right when the defense drops deep." },
+    ] };
+  return { formation, plays: [sweep, quick, pc] };
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -1067,6 +1117,13 @@ if (book.version < 24) {
     for (const id of ["pk_trick", "pk_zone"]) book.packages.find((k) => k.id === id)?.playIds.push("fl_bunchbobble_r");
   }
   book.version = 24;
+}
+// v25: the Shane formation (single back, under center) with Shane Sweep, Shane Quick and Shane Post Corner.
+if (book.version < 25) {
+  const sh = shaneBook();
+  if (!book.formations.some((f) => f.id === sh.formation.id)) book.formations.push(sh.formation);
+  for (const p of sh.plays) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
+  book.version = 25;
 }
 }
 const prefs = store.get(PREFS, {});
