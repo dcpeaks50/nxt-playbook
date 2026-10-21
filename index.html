@@ -669,6 +669,31 @@ function flagPlaysV2() {
     }, [{ t: 0.7, kind: "handoff", to: "A" }], "Everything looks like Load Power to the heavy side. H fakes it, A takes the handoff back the other way, and Y pulls across to lead him."),
   ];
 }
+/** Extra point plays (their own thing, kept out of the 16). Run from the 5: end zone 5 yards away. */
+function flagXP() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  const formations = [{
+    id: "fl_xpjet_r", name: "XP Jet", format: "7", side: "O", lineup: {},
+    spots: [["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 7, -0.7], ["A", 14, -0.7], ["X", -10, -1.6], ["QB", 0, -5], ["H", 2, -6]].map(([pos, x, y]) => ({ pos, x, y })),
+  }];
+  const plays = [
+    { id: "fl_xpjetslant_r", name: "XP Jet Fake Slant", formationId: "fl_xpjet_r", type: "pass", goal: 5, snap: 0.9, paths: {
+      C: blk(0.5, 1), QB: r([[0.3, -4.6], [-0.5, -5.2]], { speed: 3 }), Y: blk(2.9, 1),
+      X: r([[-4, -2.7], [0, -3.3], [6, -3], [11, -0.5], [13, 3]], { speed: 7, curve: true, motion: true, dash: "dotted" }),
+      H: r([[0.5, -6.8], [-4, -6.6], [-8, -4.2], [-9.5, 0]], { speed: 6.3, curve: true, dash: "dotted" }),
+      Z: r([[7, 1], [2.5, 6]], { speed: 6.3, star: true }), A: r([[14, 8]]),
+    }, events: [{ t: 2.1, kind: "pass", to: "Z" }],
+      notes: "Extra point from the 5. X (off the line) comes in jet motion; snap just before he gets to the QB. QB fakes the jet to X, H wheels back left for a fake pitch, then the QB throws a quick 2 (slant) to Z, who is lined up on the line. Dotted lines = fakes (no ball). Y blocks, A runs his man off." },
+    { id: "fl_xprace_r", name: "XP Pro Race", formationId: "fl_pro_r", type: "pass", goal: 5, snap: 0.85, paths: {
+      C: blk(0.5, 1), QB: r([[0, -5.6]], { speed: 3 }), H: blk(3, -4), A: blk(-3, -4),
+      Z: r([[4.5, -2.1], [2.6, -2.3], [7, 0.5], [12.5, 5], [14, 7]], { speed: 7.5, motion: true, star: true }),
+      Y: r([[2.5, 2], [-0.5, 6]], { speed: 6.3 }), X: r([[-15, 9]]),
+    }, events: [{ t: 1.4, kind: "pass", to: "Z" }],
+      notes: "Extra point vs man. Z, the only slot, sprints in motion toward the center; snap as soon as he gets near the line. He turns and races straight back out the way he came, angled to the pylon. Ball out right away; it's a race his man can't win. Y and X take their men away. Drawn with Z on the right; pick Left for the slot on the left." },
+  ];
+  return { formations, plays };
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -806,6 +831,16 @@ if (book.version < 14) {
   const motion = book.packages.find((k) => k.id === "pk_motion");
   if (motion) motion.playIds = ["fl_splitjet_r", "fl_ladder_r", "fl_bunchjet_r", "fl_bunch2split_r"].filter((id) => book.plays.some((p) => p.id === id));
   book.version = 14;
+}
+// v15: extra point plays (XP Jet Fake Slant, XP Pro Race) in the Extra point package.
+if (book.version < 15) {
+  const xp = flagXP();
+  for (const f of xp.formations) if (!book.formations.some((x) => x.id === f.id)) book.formations.push(f);
+  for (const p of xp.plays) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
+  let pk = book.packages.find((k) => k.id === "pk_xp");
+  if (!pk) { pk = { id: "pk_xp", name: "Extra point", playIds: [] }; book.packages.push(pk); }
+  for (const id of ["fl_xpjetslant_r", "fl_xprace_r"]) if (!pk.playIds.includes(id)) pk.playIds.unshift(id);
+  book.version = 15;
 }
 }
 const prefs = store.get(PREFS, {});
