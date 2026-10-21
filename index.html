@@ -905,6 +905,27 @@ function shaneBook() {
     ] };
   return { formation, plays: [sweep, quick, pc] };
 }
+/** H Under: H takes the snap and tosses it back to the QB, who (not having taken the snap) runs the option with A. */
+const HUNDER_T = { toss: 0.3, pitch: 2.1 };
+function hUnderBook() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  const formation = { id: "fl_hunder_r", name: "H Under", format: "7", side: "O", lineup: {},
+    spots: [["X", -15, -0.7], ["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 11, -1.6], ["H", -1.2, -1.9], ["QB", 0, -5.5], ["A", -2.5, -5.5]].map(([pos, x, y]) => ({ pos, x, y })) };
+  const paths = {
+    H: r([[-0.6, -2.6], [2.5, -1.2], [5.5, 1.5]], { speed: 6, delay: 0.35, end: "block" }),
+    QB: r([[0.5, -5.4], [4, -4.6], [7.5, -2.8], [9.5, 0.5], [10, 14]], { speed: 5.8, delay: 0.8, curve: true, star: true }),
+    A: r([[-1, -6.4], [3, -7], [8, -6.4], [12, -4.5], [14, -1], [14.5, 14]], { speed: 6.4, delay: 0.5, curve: true }),
+    C: blk(1.5, 1), Y: blk(4, 1.2), Z: blk(12.5, 3), X: r([[-15, 10]]),
+  };
+  const pitch = JSON.parse(JSON.stringify(paths)); delete pitch.QB.star; pitch.A.star = true;
+  pitch.QB.pts = [[0.5, -5.4], [4, -4.6], [7.5, -2.8], [8.5, -1]];
+  return { formation, play: { id: "fl_hunder_r", name: "H Under Option", formationId: "fl_hunder_r", type: "run", snapTo: "H", optName: "Keep",
+    paths, events: [{ t: HUNDER_T.toss, kind: "pitch", to: "QB" }],
+    notes: "Trick play. H lines up just off the line, a step left of the center, and takes the snap. He turns and tosses it right back to the QB, then leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.",
+    options: [{ name: "Pitch", paths: pitch, events: [{ t: HUNDER_T.toss, kind: "pitch", to: "QB" }, { t: HUNDER_T.pitch, kind: "pitch", to: "A" }],
+      notes: "Same play. The defender comes up for the QB, so the QB pitches it to A trailing outside, and A takes it around the edge." }] } };
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -1124,6 +1145,13 @@ if (book.version < 25) {
   if (!book.formations.some((f) => f.id === sh.formation.id)) book.formations.push(sh.formation);
   for (const p of sh.plays) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
   book.version = 25;
+}
+// v26: H Under Option (trick play: H takes the snap, tosses back to the QB, who runs the option with A).
+if (book.version < 26) {
+  const hu = hUnderBook();
+  if (!book.formations.some((f) => f.id === hu.formation.id)) book.formations.push(hu.formation);
+  if (!book.plays.some((x) => x.id === hu.play.id)) { book.plays.push(hu.play); book.packages.find((k) => k.id === "pk_trick")?.playIds.push(hu.play.id); }
+  book.version = 26;
 }
 }
 const prefs = store.get(PREFS, {});
@@ -1355,7 +1383,8 @@ function ballAt(play, f, t) {
   let holder = has("C") ? "C" : f.spots[0]?.pos;
   if (!holder || f.side !== "O") return null;
   const evs = [];
-  if (has("QB") && holder !== "QB") evs.push({ t: play?.snap || 0, kind: "snap", to: "QB" });
+  const snapTo = play?.snapTo && has(play.snapTo) ? play.snapTo : "QB"; // trick plays can snap it to someone else
+  if (has(snapTo) && holder !== snapTo) evs.push({ t: play?.snap || 0, kind: "snap", to: snapTo });
   evs.push(...(play?.events || []).filter((e) => has(e.to)).slice().sort((a, b) => a.t - b.t));
   for (const e of evs) {
     if (t < e.t) break;
@@ -1825,6 +1854,7 @@ function renderDetails() {
     h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(state.flip && p.left ? (p.left.notes ?? p.notes) : dirText(p.notes)) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
     h += `<div class="box"><h3>Packages</h3>${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(p.id) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
       ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+      ${f.side === "O" ? `<div class="row"><label>Snap to</label><select id="psnapto">${f.spots.filter((x) => x.pos !== "C").map((x) => `<option ${(p.snapTo || "QB") === x.pos ? "selected" : ""}>${x.pos}</option>`).join("")}</select></div>` : ""}
       <div class="row"><label>End zone</label><select id="pgoal">${[["", "None"], ["5", "5 yds away"], ["10", "10 yds away"], ["14", "14 yds away"], ["20", "20 yds away"]].map(([v, l]) => `<option value="${v}" ${String(p.goal || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}</div>`;
   }
   if (f.side === "O") h += `<div class="box"><h3>Route numbers</h3><div class="chips">${ROUTES.map((rt) => `<span class="chip"><b>${rt.n}</b> ${rt.name}</span>`).join("")}</div>${editing && state.editMode === "play" ? `<p class="hint">Tap a receiver, then a number under <b>Player</b> to draw that route.</p>` : ""}</div>`;
@@ -1870,6 +1900,7 @@ $("#details").addEventListener("change", (e) => {
   const pk = e.target.dataset.inpk;
   if (pk && p) { const k = book.packages.find((x) => x.id === pk); if (k) { k.playIds = e.target.checked ? [...k.playIds, p.id] : k.playIds.filter((id) => id !== p.id); save(); renderSidebar(); } }
   if (e.target.id === "ptype" && p) { p.type = e.target.value; save(); renderSidebar(); renderTitle(); }
+  if (e.target.id === "psnapto" && p) { if (e.target.value === "QB") delete p.snapTo; else p.snapTo = e.target.value; save(); setT(state.t); }
   if (e.target.id === "pgoal" && p) { if (e.target.value) p.goal = +e.target.value; else delete p.goal; save(); draw(); }
   if (e.target.id === "pend" && p && state.selPos) { (p.paths[state.selPos] ||= { pts: [] }).end = e.target.value; save(); draw(); }
   const lp = e.target.dataset.lineup;
