@@ -906,14 +906,15 @@ function shaneBook() {
   return { formation, plays: [sweep, quick, pc] };
 }
 /** H Under: H takes the snap and tosses it back to the QB, who (not having taken the snap) runs the option with A. */
-const HUNDER_T = { toss: 0.3, pitch: 2.1 };
+const HUNDER_T = { toss: 0.3, pitch: 2.1 }, HUNDER_H = [[0.4, -3], [3, -1.4], [5.5, 1.5]];
+const HUNDER_NOTES = "Trick play. H lines up under center like a QB and takes the snap. He hurries and shuffles it right back to the QB, then leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.";
 function hUnderBook() {
   const r = (pts, o = {}) => ({ pts, ...o });
   const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
   const formation = { id: "fl_hunder_r", name: "H Under", format: "7", side: "O", lineup: {},
-    spots: [["X", -15, -0.7], ["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 11, -1.6], ["H", -1.2, -1.9], ["QB", 0, -5.5], ["A", -2.5, -5.5]].map(([pos, x, y]) => ({ pos, x, y })) };
+    spots: [["X", -15, -0.7], ["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 11, -1.6], ["H", 0, -2.3], ["QB", 0, -5.5], ["A", -2.5, -5.5]].map(([pos, x, y]) => ({ pos, x, y })) };
   const paths = {
-    H: r([[-0.6, -2.6], [2.5, -1.2], [5.5, 1.5]], { speed: 6, delay: 0.35, end: "block" }),
+    H: r(HUNDER_H, { speed: 6, delay: 0.35, end: "block" }),
     QB: r([[0.5, -5.4], [4, -4.6], [7.5, -2.8], [9.5, 0.5], [10, 14]], { speed: 5.8, delay: 0.8, curve: true, star: true }),
     A: r([[-1, -6.4], [3, -7], [8, -6.4], [12, -4.5], [14, -1], [14.5, 14]], { speed: 6.4, delay: 0.5, curve: true }),
     C: blk(1.5, 1), Y: blk(4, 1.2), Z: blk(12.5, 3), X: r([[-15, 10]]),
@@ -922,7 +923,7 @@ function hUnderBook() {
   pitch.QB.pts = [[0.5, -5.4], [4, -4.6], [7.5, -2.8], [8.5, -1]];
   return { formation, play: { id: "fl_hunder_r", name: "H Under Option", formationId: "fl_hunder_r", type: "run", snapTo: "H", optName: "Keep",
     paths, events: [{ t: HUNDER_T.toss, kind: "pitch", to: "QB" }],
-    notes: "Trick play. H lines up just off the line, a step left of the center, and takes the snap. He turns and tosses it right back to the QB, then leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.",
+    notes: HUNDER_NOTES,
     options: [{ name: "Pitch", paths: pitch, events: [{ t: HUNDER_T.toss, kind: "pitch", to: "QB" }, { t: HUNDER_T.pitch, kind: "pitch", to: "A" }],
       notes: "Same play. The defender comes up for the QB, so the QB pitches it to A trailing outside, and A takes it around the edge." }] } };
 }
@@ -1152,6 +1153,17 @@ if (book.version < 26) {
   if (!book.formations.some((f) => f.id === hu.formation.id)) book.formations.push(hu.formation);
   if (!book.plays.some((x) => x.id === hu.play.id)) { book.plays.push(hu.play); book.packages.find((k) => k.id === "pk_trick")?.playIds.push(hu.play.id); }
   book.version = 26;
+}
+// v27: in H Under, H lines up under center like a QB (the QB can't scramble, so H takes a real snap and shuffles it back).
+if (book.version < 27) {
+  const f = book.formations.find((x) => x.id === "fl_hunder_r"), h = f?.spots.find((x) => x.pos === "H");
+  if (h && h.x === -1.2 && h.y === -1.9) {
+    h.x = 0; h.y = -2.3;
+    const p = book.plays.find((x) => x.id === "fl_hunder_r");
+    for (const v of p ? [p, ...(p.options || [])] : []) if (v.paths?.H) v.paths.H.pts = HUNDER_H.map((q) => [...q]);
+    if (p && /just off the line/.test(p.notes)) p.notes = HUNDER_NOTES;
+  }
+  book.version = 27;
 }
 }
 const prefs = store.get(PREFS, {});
