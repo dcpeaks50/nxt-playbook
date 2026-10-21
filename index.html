@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261021142141">
+<meta name="nxt-build" content="20261021194249">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -941,6 +941,30 @@ function shaneBook() {
     ] };
   return { formation, plays: [sweep, quick, pc] };
 }
+/** Pro Stack Shift: A shifts to the left slot, H shifts to stack right behind Z, then five routes and C as the outlet. */
+const PROSTACK_T = { snap: 2.7, X: 4.2, A: 4.5, Y: 3.7, H: 4.8, Z: 4.4, C: 3.6 };
+function proStack() {
+  const r = (pts, o = {}) => ({ pts, ...o }), T = PROSTACK_T;
+  const paths = {
+    QB: r([[0, -6.5]], { speed: 3 }), C: r([[0, 5]]),
+    X: r([[-15, 10], [-8, 19]]),
+    A: r([[-8, -1.6], [-8, 4], [-12, 5], [-12.5, 18]], { shift: true }),
+    Y: r([[2.5, 3.5], [4, 5], [8, 5]], { curve: true }),
+    H: r([[11, -3.4], [10.5, 10], [17, 10]], { shift: true }),
+    Z: r([[13, 20]]),
+  };
+  const v = (pos) => ({ paths: Object.fromEntries(Object.entries(JSON.parse(JSON.stringify(paths))).map(([k, q]) => { if (k === pos) q.star = true; return [k, q]; })),
+    events: [{ t: T[pos], kind: "pass", to: pos }] });
+  return { id: "fl_prostack_r", name: "Pro Stack Shift", formationId: "fl_pro_r", type: "pass", snap: T.snap, optName: "X Post", ...v("X"),
+    notes: "Line up in Pro. At the last second A shifts out to the left slot and H shifts out right, stacked right behind Z. Everyone sets, then the snap. X runs a deep 8 (post), A runs an out and up, Y runs a rounded 3 (out) at 5 yards, H runs a deep out off the stack and Z runs a 9 (go). C settles in the middle as the outlet.",
+    options: [
+      { name: "A Out & Up", ...v("A"), notes: "Same play, throw it to A going up the sideline after his out. The corner bites on the out." },
+      { name: "Y Out", ...v("Y"), notes: "Same play, throw it to Y on the rounded out at 5 yards. Quick and safe." },
+      { name: "H Deep Out", ...v("H"), notes: "Same play, throw it to H on the deep out. Coming off the stack behind Z, his man can't get a clean jam." },
+      { name: "Z Go", ...v("Z"), notes: "Same play, throw it deep to Z on the 9 (go)." },
+      { name: "C Check", ...v("C"), notes: "Same play, dump it to C sitting in the middle when everyone downfield is covered." },
+    ] };
+}
 /** H Under: H takes the snap and tosses it back to the QB, who (not having taken the snap) runs the option with A. */
 const HUNDER_T = { toss: 0.3, pitch: 2.1 }, HUNDER_H = [[0.4, -3], [3, -1.4], [5.5, 1.5]]; // v26 (kept for the v27 migration)
 const HUNDER_NOTES = "Trick play. H lines up under center like a QB and takes the snap. He turns and steps back to his right, then shuffles it back to the QB, who is lined up behind him off to the right. Then H leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.";
@@ -1236,6 +1260,14 @@ if (book.version < 29) {
 }
 // v30: the practice plan.
 if (book.version < 30) { book.practice ||= practiceDefault(); book.version = 30; }
+// v31: Pro Stack Shift (A shifts to the left slot, H stacks behind Z).
+if (book.version < 31) {
+  if (book.formations.some((f) => f.id === "fl_pro_r") && !book.plays.some((p) => p.id === "fl_prostack_r")) {
+    book.plays.push(proStack());
+    book.packages.find((k) => k.id === "pk_motion")?.playIds.push("fl_prostack_r");
+  }
+  book.version = 31;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
