@@ -842,6 +842,11 @@ if (book.version < 15) {
   for (const id of ["fl_xpjetslant_r", "fl_xprace_r"]) if (!pk.playIds.includes(id)) pk.playIds.unshift(id);
   book.version = 15;
 }
+// v16: drop the "Flag 7v7" package (it was just every flag play; picking 7v7 already shows them).
+if (book.version < 16) {
+  book.packages = book.packages.filter((k) => k.id !== "pk_flag");
+  book.version = 16;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
