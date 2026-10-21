@@ -182,6 +182,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <button class="btn sm" id="btn-dupplay">Duplicate play</button>
       <button class="btn sm" id="btn-saveflip" hidden title="Make a mirrored copy (Right ↔ Left)">Save flipped copy</button>
       <button class="btn sm danger" id="btn-delplay">Delete play</button>
+      <button class="btn sm" id="btn-renform">Rename formation</button>
       <button class="btn sm danger" id="btn-delform">Delete formation</button>
       <button class="btn sm primary" id="btn-done">Done</button>
     </div>
@@ -1857,6 +1858,12 @@ $("#btn-delplay").onclick = () => {
   const p = rawPlay(); if (!p || !confirm(`Delete “${p.name}”?`)) return;
   book.plays = book.plays.filter((x) => x !== p); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => id !== p.id)));
   save(); state.playId = null; state.mode = "view"; refresh();
+};
+$("#btn-renform").onclick = () => {
+  const f = currentFormation(); if (!f) return;
+  const name = (prompt("Formation name (Right / Left is added for you)", f.name) || "").trim();
+  if (!name || name === f.name) return;
+  f.name = name; save(); refresh();
 };
 $("#btn-delform").onclick = () => {
   const f = currentFormation(); if (!f) return;
