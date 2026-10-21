@@ -796,6 +796,45 @@ function addPlayOptions() {
     ];
   }
 }
+/** More options: a fake or a second ending for the runs and trick plays, built off each play as it stands. */
+const OPT_T = { jetslant: 1.7, tornado: 1.8, go: 2.6, counter: 1, corner: 2.1, pop: 1.6 };
+function addMoreOptions() {
+  const cp = (o) => JSON.parse(JSON.stringify(o));
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const fake = (v) => { const q = { ...v, dash: "dotted" }; delete q.star; return q; };
+  const unstar = (v) => { const q = { ...v }; delete q.star; return q; };
+  const give = (id, optName, name, edit, events, notes) => {
+    const p = book.plays.find((x) => x.id === id); if (!p || p.options) return;
+    const paths = cp(p.paths); edit(paths);
+    p.optName = optName; p.options = [{ name, paths, events, notes }];
+  };
+  give("fl_splitjet_r", "Jet", "Fake Jet Slant", (P) => { P.A = fake(P.A); P.Z = r([[15, 0.8], [11, 3], [7, 4.5]], { star: true }); },
+    [{ t: OPT_T.jetslant, kind: "pass", to: "Z" }], "Same look as the jet. QB fakes it to A (dotted = fake) and throws Z the 2 (slant) right behind the defense chasing the jet. Y and H block, X runs his man off.");
+  give("fl_tornado_r", "Tornado", "Pass", (P) => { P.H = fake(P.H); P.A = r([[-4, 0.5], [3, 2.5], [11, 5]], { star: true }); },
+    [{ t: OPT_T.tornado, kind: "pass", to: "A" }], "Same look as Tornado. QB fakes the handoff to H turning back left (dotted = fake), then throws to A crossing right underneath with everybody flowing that way. X still runs off.");
+  give("fl_ladder_r", "Ladder", "Go", (P) => { P.X = r([[-15, 5.5], [-14.6, 4.5], [-15, 18]], { star: true }); P.H = unstar(P.H); },
+    [{ t: OPT_T.go, kind: "pass", to: "X" }], "Same look as the Ladder. X stops on the hitch, and when his man jumps it he takes off deep (hitch and go). H still comes in motion and circles out as a decoy. A and Z clear out.");
+  give("fl_bunchjet_r", "Jet", "Counter", (P) => { P.X = fake(P.X); P.A = r([[-0.6, -5.3], [-3, -4], [-5, -1], [-6, 3], [-6, 14]], { speed: 6.3, delay: 0.35, curve: true, star: true }); },
+    [{ t: OPT_T.counter, kind: "handoff", to: "A" }], "Same look as the jet. QB fakes it to X (dotted = fake) and hands to A going back the other way to the left. Everybody else blocks like it's the jet.");
+  give("fl_bunchsweep_r", "Sweep", "Corner", (P) => { P.H = fake(P.H); P.Z = r([[7, 2.5], [8, 4], [13, 13]], { star: true }); },
+    [{ t: OPT_T.corner, kind: "pass", to: "Z" }], "Same look as the sweep. QB fakes it to H (dotted = fake). Z sells his block for a count, then runs a 7 (corner) over the top and the QB throws it to him. A, Y and X block like it's the sweep.");
+  give("fl_xprace_r", "Race", "Y Pop", (P) => { P.Z = unstar(P.Z); P.Y = { ...P.Y, star: true }; },
+    [{ t: OPT_T.pop, kind: "pass", to: "Y" }], "Same look as the Race. Z's motion pulls the defense out wide, and Y pops inside on the slant for the quick throw.");
+  // Pro Cross and Pro A Pass are built to look like Pro Lead: they become its options (each keeps its own Left version).
+  const lead = book.plays.find((p) => p.id === "fl_prolead_r");
+  if (lead && !lead.options) {
+    lead.optName = "Lead"; lead.options = [];
+    for (const [id, name] of [["fl_procross_r", "Cross"], ["fl_hpass_r", "A Pass"]]) {
+      const p = book.plays.find((x) => x.id === id); if (!p) continue;
+      const o = { name, paths: cp(p.paths), events: cp(p.events), notes: p.notes }; if (p.left) o.left = cp(p.left);
+      if (id === "fl_hpass_r" && o.paths.H?.star && /throws it to Z/.test(o.notes)) o.notes = "Looks just like Pro Lead. A takes the handoff to the right; H fakes his lead block and slips out to the flat, and A pulls up and throws it to him. Z and X run deep to clear out.";
+      lead.options.push(o);
+      book.plays = book.plays.filter((x) => x.id !== id);
+      for (const k of book.packages) { k.playIds = k.playIds.map((x) => (x === id ? "fl_prolead_r" : x)).filter((x, i, a) => a.indexOf(x) === i); }
+    }
+    if (!lead.options.length) { delete lead.options; delete lead.optName; }
+  }
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -999,6 +1038,8 @@ if (book.version < 22) {
   for (const k of book.packages) k.playIds = k.playIds.filter((id) => !gone.has(id));
   book.version = 22;
 }
+// v23: options for the other runs and trick plays; Pro Cross and Pro A Pass become options of Pro Lead.
+if (book.version < 23) { addMoreOptions(); book.version = 23; }
 }
 const prefs = store.get(PREFS, {});
 const state = {
