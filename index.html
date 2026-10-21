@@ -511,7 +511,7 @@ function flagPlays() {
   const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
   const P = (id, name, formationId, type, paths, events, notes, extra = {}) => ({ id, name, formationId, type, paths, events, notes, ...extra });
   const SPLIT = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["QB", 0, -5], ["X", -15, -0.7], ["A", -8, -1.6], ["H", 8, -1.6], ["Z", 15, -0.7]];
-  const PRO = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["QB", 0, -5], ["X", -15, -0.7], ["Z", 9, -1.6], ["H", 2, -6], ["A", -2, -6]];
+  const PRO = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["QB", 0, -5], ["X", -15, -0.7], ["Z", 9, -1.6], ["H", 3, -6.5], ["A", -3, -6.5]];
   const BUNCH = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 4, -1.7], ["X", -4, -0.7], ["QB", 0, -5], ["H", 1.8, -6], ["A", -1.8, -6]];
   const LOAD = [["C", 0, -0.7], ["Y", 2.5, -0.7], ["Z", 4.2, -1.6], ["X", 8, -0.7], ["QB", 0, -5], ["H", 1.8, -6], ["A", 3.6, -6]];
   const formations = [F("fl_split_r", "Split Right", SPLIT), F("fl_pro_r", "Pro Right", PRO), F("fl_bunch_r", "Bunch Right", BUNCH), F("fl_load_r", "Load Right", LOAD)];
@@ -535,7 +535,7 @@ function flagPlays() {
       C: blk(1, 1.2), QB: r([[0.6, -5.3]], { speed: 3 }),
       H: r([[1.1, -5.6], [6, -4.6], [10, -1], [11, 3], [11, 15]], { speed: 6.3, delay: 0.25, curve: true, star: true }),
       A: r([[1, -3.6], [7, -1], [9.5, 2]], { end: "block" }), Y: blk(3.8, 1.2), Z: blk(10.5, 3.5), X: r([[-15, 10]]),
-    }, [{ t: 0.45, kind: "handoff", to: "H" }], "Handoff to H going right. A leads through, Y seals inside, Z blocks the corner. X runs off."),
+    }, [{ t: 0.6, kind: "handoff", to: "H" }], "Handoff to H going right. A leads through, Y seals inside, Z blocks the corner. X runs off."),
     P("fl_pro23_r", "Pro Right 23", "fl_pro_r", "pass", {
       C: r([[0, 4]]), QB: r([[0, -6.5]], { speed: 3 }),
       Z: r([[9, 0.6], [6, 2.2], [3, 3]], { star: true }), Y: r([[2.5, 6.5], [7, 6.5]]),
@@ -846,6 +846,16 @@ if (book.version < 15) {
 if (book.version < 16) {
   book.packages = book.packages.filter((k) => k.id !== "pk_flag");
   book.version = 16;
+}
+// v17: Pro's split backs spaced out beside and behind the QB (they were jammed against him); handoffs retimed.
+if (book.version < 17) {
+  const pro = book.formations.find((f) => f.id === "fl_pro_r");
+  if (pro) for (const s of pro.spots) { if (s.pos === "H") { s.x = 3; s.y = -6.5; } if (s.pos === "A") { s.x = -3; s.y = -6.5; } }
+  const retime = (id, to, from, t) => { const e = book.plays.find((p) => p.id === id)?.events.find((x) => x.to === to && x.t === from); if (e) e.t = t; };
+  retime("fl_prosweep_r", "H", 0.45, 0.6);
+  retime("fl_zrev_r", "A", 0.6, 0.8); retime("fl_zrev_r", "Z", 1.25, 1.35);
+  retime("fl_hpass_r", "H", 0.45, 0.55);
+  book.version = 17;
 }
 }
 const prefs = store.get(PREFS, {});
