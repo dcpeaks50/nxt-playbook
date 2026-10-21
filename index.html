@@ -1466,15 +1466,18 @@ function renderSidebar() {
       </div>`).join("")
     : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
 }
-$("#fmt").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.format = b.dataset.v; state.formationId = null; state.playId = null; state.type = "all"; savePrefs(); refresh(); };
-$("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.side = b.dataset.v; state.formationId = null; state.type = "all"; savePrefs(); refresh(); };
+$("#fmt").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.format = b.dataset.v; state.formationId = null; state.formationOnly = false; state.playId = null; state.type = "all"; savePrefs(); refresh(); };
+$("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.side = b.dataset.v; state.formationId = null; state.formationOnly = false; state.type = "all"; savePrefs(); refresh(); };
 $("#labels").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.labels = b.dataset.v; savePrefs(); renderSidebar(); draw(); };
 $("#btn-ghost").onclick = () => { state.ghost = !state.ghost; savePrefs(); renderSidebar(); draw(); };
 $("#formations").onclick = (e) => {
   const b = e.target.closest("[data-f]"); if (!b) return;
   state.formationId = b.dataset.f || null;
-  const p = currentPlay();
-  if (state.formationId && (!p || p.formationId !== state.formationId)) state.playId = (visiblePlays()[0] || {}).id || null;
+  // A formation on its own: just the players lined up (no routes). Pick a play from the list to see it.
+  setPlaying(false); state.selPos = null; state.t = 0;
+  if (state.mode === "edit") state.editMode = "formation";
+  state.formationOnly = !!state.formationId;
+  state.playId = state.formationId ? null : (visiblePlays()[0] || {}).id || null;
   refresh();
 };
 $("#packages").onclick = (e) => {
@@ -1494,7 +1497,7 @@ $("#plays").onclick = (e) => {
   const it = e.target.closest("[data-p]"); if (!it) return; openPlay(it.dataset.p);
 };
 $("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
-function openPlay(id) { setPlaying(false); state.playId = id; state.selPos = null; state.t = 0; refresh(); }
+function openPlay(id) { setPlaying(false); state.formationOnly = false; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
 $("#btn-newpkg").onclick = () => {
   const name = (prompt("Package name (e.g. “Red zone”, “vs Man”, “Opening script”)") || "").trim();
   if (!name) return;
@@ -1508,7 +1511,7 @@ $("#btn-newplay").onclick = () => {
   const p = { id: "p_" + uid(), name: "New play", formationId: f.id, type: TYPES[f.side][0], paths: {}, events: [], notes: "" };
   book.plays.push(p);
   if (state.pkg !== "all") book.packages.find((k) => k.id === state.pkg)?.playIds.push(p.id);
-  save(); state.playId = p.id; state.formationId = f.id; enterEdit("play"); refresh();
+  save(); state.formationOnly = false; state.playId = p.id; state.formationId = f.id; enterEdit("play"); refresh();
 };
 $("#btn-dupform").onclick = () => {
   const f = currentFormation() || visibleFormations()[0];
@@ -1723,7 +1726,20 @@ const clampPt = (f, pt) => { const W = WIDTH[f.format] / 2; return { x: Math.max
 svg.addEventListener("pointermove", (e) => {
   if (!drag) return;
   const f = currentFormation(), p = currentPlay(), { x, y } = clampPt(f, toField(e));
-  if (drag.kind === "spot") { const s = f.spots.find((q) => q.pos === drag.pos); if (s) { s.x = x; s.y = y; } }
+  if (drag.kind === "spot") {
+    const s = f.spots.find((q) => q.pos === drag.pos);
+    if (s && (s.x !== x || s.y !== y)) {
+      // Every play in this formation follows: that player's route (and his Left version) moves with him,
+      // unless a play already has its own spot for him.
+      const dx = x - s.x, dy = y - s.y, rd = (v) => Math.round(v * 100) / 100, mv = (pts) => pts.map(([px, py]) => [rd(px + dx), rd(py + dy)]);
+      for (const q of book.plays) {
+        if (q.formationId !== f.id || q.align?.[drag.pos]) continue;
+        if (q.paths?.[drag.pos]?.pts) q.paths[drag.pos].pts = mv(q.paths[drag.pos].pts);
+        if (q.left?.paths?.[drag.pos]?.pts) q.left.paths[drag.pos].pts = mv(q.left.paths[drag.pos].pts);
+      }
+      s.x = x; s.y = y;
+    }
+  }
   if (drag.kind === "wp" && p) {
     if (!drag.moved && dist(drag.start, { x, y }) > 0.6) drag.moved = true;
     const pts = p.paths[drag.pos]?.pts; if (drag.moved && pts?.[drag.i]) pts[drag.i] = [x, y];
@@ -1738,7 +1754,7 @@ svg.addEventListener("pointermove", (e) => {
       if (dx || dy) {
         (p.align ||= {})[drag.pos] = [x, y];
         const path = p.paths[drag.pos];
-        if (path?.pts) path.pts = path.pts.map(([px, py]) => [px + dx, py + dy]); // his route comes with him
+        if (path?.pts) path.pts = path.pts.map(([px, py]) => [Math.round((px + dx) * 100) / 100, Math.round((py + dy) * 100) / 100]); // his route comes with him
       }
     }
   }
@@ -1871,7 +1887,7 @@ function refresh() {
   if (state.formationId && !shown.has(state.formationId)) state.formationId = null;
   const p = currentPlay();
   if (p && !shown.has(p.formationId)) state.playId = null;
-  if (!state.playId && state.mode !== "edit") state.playId = (visiblePlays()[0] || {}).id || null;
+  if (!state.playId && state.mode !== "edit" && !state.formationOnly) state.playId = (visiblePlays()[0] || {}).id || null;
   renderSidebar(); renderTitle(); renderDetails(); setT(state.t);
 }
 // ---------------------------------------------------------------- share links (#share=…)
