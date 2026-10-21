@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
+<meta name="nxt-build" content="20261021135132">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -34,6 +35,13 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .btn.danger{color:var(--danger)}
 .btn.sm{padding:4px 9px;font-size:12px;border-radius:8px}
 
+.updbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;background:var(--gold);color:#1a1300;font-weight:700}
+.ptally{position:sticky;top:var(--hdr,0px);z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin-top:10px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.ptally .big{font-size:22px;font-weight:900}
+.ptally .big.ok{color:var(--accent)}.ptally .big.over{color:var(--danger)}.ptally .big.done{color:var(--ink)}
+.pbar{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:8px}
+.pbar i{display:block;height:100%;background:var(--accent);transition:width .2s}
+.pbar i.over{background:var(--danger)}
 .practice{max-width:900px;margin:0 auto;padding:16px}
 .ptop{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px}
 .ptop h1{margin:0;font-size:22px;width:100%}
@@ -162,6 +170,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
   <input type="file" id="file" accept="application/json,.json" hidden>
 </header>
 
+<div class="updbar" id="updbar" hidden>A newer version of the playbook is ready. <button class="btn sm" id="btn-update">Update now</button></div>
 <section class="practice" id="practice" hidden></section>
 <div class="app">
   <aside>
@@ -2256,12 +2265,29 @@ function practiceTimes(pr) {
   let t = toMin(pr.start);
   return { fixed, flexMin, rows: pr.blocks.map((b) => { const m = b.flex ? flexMin : +b.min || 0, r = { b, m, from: t, to: t + m }; t += m; return r; }) };
 }
+const ptimeHtml = (from, to, m) => `${clock(from)}<small>to ${clock(to)} · ${m} min</small>`;
+/** The running tally against the practice clock: how many minutes are still open. */
+function practiceTally() {
+  const pr = book.practice, { fixed, flexMin } = practiceTimes(pr), fb = pr.blocks.find((b) => b.flex), left = pr.length - fixed;
+  const pct = Math.min(100, Math.round((fixed / pr.length) * 100));
+  const head = left < 0 ? `<span class="big over">${-left} min over</span>` : left === 0 ? `<span class="big done">All ${pr.length} min planned</span>` : `<span class="big ok">${left} min left</span>`;
+  const sub = left < 0 ? `The blocks add up to ${fixed} of ${pr.length} minutes. Trim something or make practice longer.`
+    : `${fixed} of ${pr.length} min planned · ${clock(toMin(pr.start))} to ${clock(toMin(pr.start) + pr.length)}${fb && left > 0 ? ` · ${esc(fb.name)} gets the ${flexMin} min left` : ""}`;
+  return `${head}<div class="hint" style="margin:2px 0 0">${sub}</div><div class="pbar"><i class="${left < 0 ? "over" : ""}" style="width:${pct}%"></i></div>`;
+}
+/** Update times and the tally in place (keeps the cursor in the box you're typing in). */
+function updatePracticeTimes() {
+  const { rows } = practiceTimes(book.practice);
+  for (const { b, m, from, to } of rows) {
+    const el = document.querySelector(`#practice [data-b="${b.id}"]`); if (!el) continue;
+    el.querySelector(".ptime").innerHTML = ptimeHtml(from, to, m);
+    if (b.flex) el.querySelector('[data-k="min"]').value = m;
+  }
+  $("#pr-tally").innerHTML = practiceTally();
+  $("#pr-end").value = toHHMM(toMin(book.practice.start) + book.practice.length);
+}
 function renderPractice() {
   const pr = (book.practice ||= practiceDefault()), { fixed, flexMin, rows } = practiceTimes(pr), flex = pr.blocks.some((b) => b.flex);
-  const planned = fixed + (flex ? flexMin : 0), over = fixed - pr.length;
-  const status = over > 0 ? `The blocks add up to ${fixed} min, ${over} over the ${pr.length}-minute practice. Trim something.`
-    : !flex && planned !== pr.length ? `The blocks add up to ${planned} of ${pr.length} minutes.`
-    : `${pr.length} minutes, ${clock(toMin(pr.start))} to ${clock(toMin(pr.start) + pr.length)}.${flex ? ` ${esc(pr.blocks.find((b) => b.flex).name)} gets whatever time is left (${flexMin} min).` : ""}`;
   $("#practice").innerHTML = `<div class="panel ptop">
       <h1>Practice plan</h1>
       <label>Start<input type="time" id="pr-start" value="${pr.start}"></label>
@@ -2270,9 +2296,9 @@ function renderPractice() {
       <span class="spacer"></span>
       <button class="btn sm" id="pr-add">+ Add block</button>
       <button class="btn sm" id="pr-reset">Reset to default</button>
-      <p class="pstatus ${over > 0 || (!flex && planned !== pr.length) ? "warn" : ""}" style="width:100%">${status}</p>
-    </div>` + rows.map(({ b, m, from, to }, i) => `<div class="pblock ${isWater(b) ? "water" : ""}" data-b="${b.id}">
-      <div class="ptime">${clock(from)}<small>to ${clock(to)} · ${m} min</small></div>
+    </div>
+    <div class="ptally" id="pr-tally"></div>` + rows.map(({ b, m, from, to }, i) => `<div class="pblock ${isWater(b) ? "water" : ""}" data-b="${b.id}">
+      <div class="ptime">${ptimeHtml(from, to, m)}</div>
       <div>
         <div class="prow">
           <input type="text" class="pname" data-k="name" value="${esc(b.name)}" aria-label="Block name">
@@ -2284,6 +2310,8 @@ function renderPractice() {
         <div class="plinks">${(b.links || []).map((u, j) => { const li = linkInfo(u); return `<span><a class="${li.cls}" href="${esc(u)}" target="_blank" rel="noopener">${li.label}</a><button class="x" data-dellink="${j}" aria-label="Remove link">✕</button></span>`; }).join("")}
           <input type="url" class="plink-in" placeholder="Paste a YouTube or Instagram link to show the drill" aria-label="Drill link"><button class="btn sm" data-addlink>Add link</button></div>`}
       </div></div>`).join("");
+  $("#pr-tally").innerHTML = practiceTally();
+  document.documentElement.style.setProperty("--hdr", document.querySelector("header").offsetHeight + "px");
 }
 const practiceBlock = (el) => { const id = el.closest("[data-b]")?.dataset.b; return id && book.practice.blocks.find((b) => b.id === id); };
 const addPracticeLink = (row) => {
@@ -2295,6 +2323,8 @@ const addPracticeLink = (row) => {
 $("#practice").addEventListener("input", (e) => {
   const b = practiceBlock(e.target), k = e.target.dataset.k;
   if (b && (k === "name" || k === "notes")) { b[k] = e.target.value; save(); }
+  if (b && k === "min" && e.target.value !== "") { b.min = Math.max(0, Math.min(180, Math.round(+e.target.value || 0))); save(); updatePracticeTimes(); }
+  if (e.target.id === "pr-len" && +e.target.value >= 5) { book.practice.length = Math.min(300, Math.round(+e.target.value)); save(); updatePracticeTimes(); }
 });
 $("#practice").addEventListener("change", (e) => {
   const pr = book.practice, t = e.target, b = practiceBlock(t), k = t.dataset.k;
@@ -2336,6 +2366,22 @@ function showPractice(on) {
   if (on) { setPlaying(false); renderPractice(); scrollTo(0, 0); }
 }
 $("#btn-practice").onclick = () => showPractice(!state.practice);
+
+// ---------------------------------------------------------------- updates
+// Phones hang on to an old copy of the site; check for a newer one and offer a one-tap update.
+const BUILD = document.querySelector('meta[name="nxt-build"]')?.content || "";
+async function checkForUpdate() {
+  if (!/^https?:/.test(location.protocol) || !BUILD || BUILD === "BUILD_STAMP") return;
+  try {
+    const html = await (await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" })).text();
+    const live = /<meta name="nxt-build" content="([^"]+)"/.exec(html)?.[1];
+    if (live && live !== BUILD) $("#updbar").hidden = false;
+  } catch {}
+}
+$("#btn-update").onclick = () => location.reload();
+setInterval(checkForUpdate, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
+setTimeout(checkForUpdate, 3000);
 
 // ---------------------------------------------------------------- go
 function refresh() {
