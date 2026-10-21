@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261021140704">
+<meta name="nxt-build" content="20261021142141">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -2314,6 +2314,15 @@ function renderPractice() {
   $("#pr-tally").innerHTML = practiceTally();
   document.documentElement.style.setProperty("--hdr", document.querySelector("header").offsetHeight + "px");
 }
+/** Reset is easy to fat-finger: make them type RESET, and keep the current plan in History first. */
+async function resetPractice() {
+  const typed = prompt("Are you sure? This replaces the whole practice plan (every block, note and link) with the default.\n\nType RESET to confirm.");
+  if (typed == null) return;
+  if (typed.trim().toUpperCase() !== "RESET") { alert("Practice plan not reset. (You have to type RESET.)"); return; }
+  if (sync.ready) { clearTimeout(sync.timer); await pushNow(); } // make sure the plan you built is what History keeps
+  sync.forceBackup = true;
+  book.practice = practiceDefault(); save(); renderPractice();
+}
 const practiceBlock = (el) => { const id = el.closest("[data-b]")?.dataset.b; return id && book.practice.blocks.find((b) => b.id === id); };
 const addPracticeLink = (row) => {
   const inp = row.querySelector(".plink-in"); let u = (inp.value || "").trim(); if (!u) return;
@@ -2344,7 +2353,7 @@ $("#practice").addEventListener("change", (e) => {
 $("#practice").addEventListener("click", (e) => {
   const pr = book.practice, t = e.target;
   if (t.id === "pr-add") { pr.blocks.push({ id: "b_" + uid(), name: "New block", min: 5, notes: "", links: [] }); save(); renderPractice(); return; }
-  if (t.id === "pr-reset") { if (confirm("Reset the practice plan to the default? Your blocks, notes and links will be replaced.")) { book.practice = practiceDefault(); save(); renderPractice(); } return; }
+  if (t.id === "pr-reset") { resetPractice(); return; }
   const b = practiceBlock(t); if (!b) return;
   const i = pr.blocks.indexOf(b);
   if (t.closest("[data-up]") && i > 0) [pr.blocks[i - 1], pr.blocks[i]] = [pr.blocks[i], pr.blocks[i - 1]];
