@@ -57,6 +57,8 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .order button{border:0;background:none;padding:0 4px;line-height:1;color:var(--muted);font-size:12px}
 
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.formplays{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.formplays b{width:100%;font-size:14px}
 .titlebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .titlebar h1{margin:0;font-size:20px;flex:1;min-width:180px}
 .titlebar input.title{flex:1;min-width:180px;font-size:18px;font-weight:800;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
@@ -166,6 +168,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <div class="seg" id="dir" role="group" aria-label="Direction" title="Run the play to the right or to the left"><button data-v="R" aria-pressed="true">Right</button><button data-v="L">Left</button></div>
       <button class="btn" id="btn-edit">Edit</button>
     </div>
+    <div class="formplays" id="formplays" hidden></div>
     <div class="editbar" id="editbar" hidden>
       <div class="seg" id="editmode" role="group" aria-label="Edit">
         <button data-v="play">Routes</button><button data-v="formation">Formation</button>
@@ -1526,7 +1529,12 @@ function setPlaying(on) {
   $("#btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
   if (on) { if (state.t >= playDuration(viewPlay(), viewFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
 }
-$("#btn-play").onclick = () => setPlaying(!state.playing);
+$("#btn-play").onclick = () => {
+  // Only the formation showing: ▶ opens its first play and runs it.
+  if (!currentPlay()) { const f = currentFormation(), q = f && visiblePlays().find((x) => x.formationId === f.id); if (!q) return; openPlay(q.id); }
+  setPlaying(!state.playing);
+};
+$("#formplays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; openPlay(b.dataset.p); setPlaying(true); };
 $("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
 $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
 $("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(viewPlay(), viewFormation())); };
@@ -1584,7 +1592,7 @@ $("#formations").onclick = (e) => {
   if (state.mode === "edit") state.editMode = "formation";
   state.formationOnly = !!state.formationId;
   state.playId = state.formationId ? null : (visiblePlays()[0] || {}).id || null;
-  refresh();
+  refresh(); toStage();
 };
 $("#packages").onclick = (e) => {
   const del = e.target.closest("[data-delpk]");
@@ -1600,9 +1608,11 @@ $("#plays").onclick = (e) => {
     if (i < 0 || j < 0 || j >= pk.playIds.length) return;
     [pk.playIds[i], pk.playIds[j]] = [pk.playIds[j], pk.playIds[i]]; save(); renderSidebar(); return;
   }
-  const it = e.target.closest("[data-p]"); if (!it) return; openPlay(it.dataset.p);
+  const it = e.target.closest("[data-p]"); if (!it) return; openPlay(it.dataset.p); toStage();
 };
 $("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
+// On a phone the list sits above the field: after picking something, bring the field into view.
+const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; const top = document.querySelector(".stage").getBoundingClientRect().top + scrollY - document.querySelector("header").offsetHeight - 8; scrollTo({ top, behavior: "smooth" }); };
 function openPlay(id) { setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
 $("#btn-newpkg").onclick = () => {
   const name = (prompt("Package name (e.g. “Red zone”, “vs Man”, “Opening script”)") || "").trim();
@@ -1707,6 +1717,11 @@ function renderTitle() {
   $("#btn-saveflip").hidden = true;
   if (p) $("#title-in").value = p.name;
   $("#title-tags").innerHTML = f ? `<span class="tag ${f.side}">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(formName(f))}</span>${p ? ` <span class="tag ${p.type}">${p.type}</span>` : ""}` : "";
+  const fo = !p && f && state.formationOnly && !editing, fps = fo ? visiblePlays().filter((q) => q.formationId === f.id) : [];
+  $("#formplays").hidden = !fo;
+  if (fo) $("#formplays").innerHTML = fps.length
+    ? `<b>This is just the ${esc(formName(f))} formation. Tap a play to run it:</b>${fps.map((q) => `<button class="btn primary" data-p="${q.id}">▶ ${esc(q.name)}</button>`).join("")}`
+    : `<b>This is just the ${esc(formName(f))} formation. It has no plays yet.</b>`;
   $("#btn-edit").textContent = editing ? "Stop editing" : "Edit";
   $("#editbar").hidden = !editing;
   setSeg($("#editmode"), state.editMode);
