@@ -909,14 +909,14 @@ function shaneBook() {
 const HUNDER_T = { toss: 0.3, pitch: 2.1 }, HUNDER_H = [[0.4, -3], [3, -1.4], [5.5, 1.5]]; // v26 (kept for the v27 migration)
 const HUNDER_NOTES = "Trick play. H lines up under center like a QB and takes the snap. He turns and steps back to his right, then shuffles it back to the QB, who is lined up behind him off to the right. Then H leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.";
 /** H Under, v28: H turns and steps back to his right holding it, then shuffles it to the QB lined up off to the right. */
-const HUNDER2 = { toss: 0.5, pitch: 2.2, QB: [2.5, -5.5], A: [-1, -5.5] };
+const HUNDER2 = { toss: 0.8, pitch: 2.5, QB: [2.5, -5.5], A: [-1, -5.5] };
 function hUnderParts() {
   const r = (pts, o = {}) => ({ pts, ...o });
   return {
-    H: r([[0.8, -3.2], [3.2, -1.6], [5.5, 1.5]], { speed: 5, delay: 0.15, end: "block" }),
-    QB: r([[3, -5.4], [6, -4.4], [8.5, -2.5], [10, 0.5], [10.3, 14]], { speed: 5.8, delay: 0.85, curve: true, star: true }),
-    QBpitch: r([[3, -5.4], [6, -4.4], [8, -2.8], [9, -1.2]], { speed: 5.8, delay: 0.85, curve: true }),
-    A: r([[0, -6.6], [4, -7], [8.5, -6.2], [12.5, -4.3], [14.5, -1], [15, 14]], { speed: 6.4, delay: 0.3, curve: true }),
+    H: r([[0.8, -3.2], [3.2, -1.6], [5.5, 1.5]], { speed: 4, delay: 0.2, end: "block" }),
+    QB: r([[3, -5.4], [6, -4.4], [8.5, -2.5], [10, 0.5], [10.3, 14]], { speed: 5.8, delay: 1.15, curve: true, star: true }),
+    QBpitch: r([[3, -5.4], [6, -4.4], [8, -2.8], [9, -1.2]], { speed: 5.8, delay: 1.15, curve: true }),
+    A: r([[0, -6.6], [4, -7], [8.5, -6.2], [12.5, -4.3], [14.5, -1], [15, 14]], { speed: 6.4, delay: 0.6, curve: true }),
   };
 }
 function hUnderBook() {
@@ -1186,6 +1186,18 @@ if (book.version < 28) {
   }
   book.version = 28;
 }
+// v29: H Under: H holds the snap a beat longer before the toss (everything after it moves 0.3 s later).
+if (book.version < 29) {
+  const p = book.plays.find((x) => x.id === "fl_hunder_r");
+  if (p && p.events?.[0]?.t === 0.5 && p.paths?.QB?.delay === 0.85) {
+    for (const v of [p, ...(p.options || [])]) {
+      if (v.paths.H) { v.paths.H.speed = 4; v.paths.H.delay = 0.2; }
+      for (const k of ["QB", "A"]) if (v.paths[k]?.delay != null) v.paths[k].delay = Math.round((v.paths[k].delay + 0.3) * 100) / 100;
+      v.events = v.events.map((e) => ({ ...e, t: Math.round((e.t + 0.3) * 100) / 100 }));
+    }
+  }
+  book.version = 29;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
@@ -1411,6 +1423,7 @@ function flightTime(play, f, fromPos, toPos, kind, t0, holderPt) {
   return fl;
 }
 /** Ball position at time t: snapped to the QB, then handed off / pitched / thrown per the play's events. */
+const BALL_DX = 0.55, BALL_DY = 0.2, HANDOFF_T = 0.2; // where a carried ball sits next to the player
 function ballAt(play, f, t) {
   const has = (p) => f.spots.some((s) => s.pos === p);
   let holder = has("C") ? "C" : f.spots[0]?.pos;
@@ -1421,17 +1434,21 @@ function ballAt(play, f, t) {
   evs.push(...(play?.events || []).filter((e) => has(e.to)).slice().sort((a, b) => a.t - b.t));
   for (const e of evs) {
     if (t < e.t) break;
-    if (e.kind === "handoff") { holder = e.to; continue; }
-    const from = playerPos(play, f, holder, e.t);
-    const fl = flightTime(play, f, holder, e.to, e.kind, e.t, from);
+    const hp = playerPos(play, f, holder, e.t), from = { x: hp.x + BALL_DX, y: hp.y + BALL_DY };
+    if (e.kind === "handoff") {
+      // A handoff slides hand to hand in a blink instead of jumping.
+      if (t < e.t + HANDOFF_T) { const tp = playerPos(play, f, e.to, t), k = (t - e.t) / HANDOFF_T; return { x: from.x + (tp.x + BALL_DX - from.x) * k, y: from.y + (tp.y + BALL_DY - from.y) * k, air: 0, flying: true }; }
+      holder = e.to; continue;
+    }
+    const fl = flightTime(play, f, holder, e.to, e.kind, e.t, hp);
     if (t < e.t + fl) {
-      const to = playerPos(play, f, e.to, e.t + fl), k = (t - e.t) / fl;
+      const tp = playerPos(play, f, e.to, e.t + fl), to = { x: tp.x + BALL_DX, y: tp.y + BALL_DY }, k = (t - e.t) / fl;
       return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k, air: Math.sin(Math.PI * k) * (e.kind === "pass" ? 1.6 : 0.5), flying: true };
     }
     holder = e.to;
   }
   const p = playerPos(play, f, holder, t);
-  return { x: p.x + 0.55, y: p.y + 0.2, air: 0, holder };
+  return { x: p.x + BALL_DX, y: p.y + BALL_DY, air: 0, holder };
 }
 /** Make the ball end up with `pos` (the player with the ★). Returns a short note saying what changed. */
 function retargetBall(p, f, pos) {
@@ -1633,7 +1650,7 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
   const ball = ballAt(play, f, t);
   if (ball) {
     const bx = ball.x, by = sy(ball.y) - ball.air;
-    if (ball.flying) s += `<ellipse style="pointer-events:none" cx="${ball.x}" cy="${sy(ball.y)}" rx="0.45" ry="0.22" fill="#000" opacity=".3"/>`;
+    if (ball.flying && ball.air > 0.05) s += `<ellipse style="pointer-events:none" cx="${ball.x}" cy="${sy(ball.y)}" rx="0.45" ry="0.22" fill="#000" opacity=".3"/>`;
     s += `<g style="pointer-events:none" transform="translate(${bx} ${by}) rotate(${ball.flying ? -30 : -20})"><ellipse rx="${0.55 + ball.air * 0.12}" ry="${0.34 + ball.air * 0.07}" fill="#8b4513" stroke="#3b1d07" stroke-width="0.08"/><line x1="-0.2" x2="0.2" y1="0" y2="0" stroke="#fff" stroke-width="0.07"/></g>`;
   }
   // Motion plays: "MOTION…" until the snap, then a quick "SNAP!"
