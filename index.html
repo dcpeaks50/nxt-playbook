@@ -707,6 +707,32 @@ function proRunsLeft() {
       notes: "Called Left: same alignment. QB fakes to A crossing right in front of him (dotted = fake), then hands to H coming behind, who hits it inside to the left. C blocks left, Y blocks back inside, X takes the corner, Z runs off." },
   };
 }
+/** Pro's halfback pass, built off Pro Lead so it looks the same. Right: A throws to Z. Left (same alignment): H throws to X. */
+function proAPass() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  return {
+    id: "fl_hpass_r", name: "Pro A Pass", formationId: "fl_pro_r", type: "pass", goal: 14,
+    paths: {
+      C: blk(0, 1.2), Y: r([[2.5, 4], [1, 19]]), X: r([[-15, 20]]), QB: r([[-0.4, -5.3]], { speed: 3 }),
+      H: r([[3.6, -3.5], [4.3, -0.5], [5.8, 1.8]], { speed: 7, end: "block" }),
+      A: r([[-1, -5.8], [1, -5], [4, -4.2], [6, -3.8]], { speed: 6, delay: 0.15 }),
+      Z: r([[12, 0.8], [13, 2.5], [14.5, 18]], { star: true }),
+    },
+    events: [{ t: 0.6, kind: "handoff", to: "A" }, { t: 2.4, kind: "pass", to: "Z" }],
+    notes: "Looks just like Pro Lead. A takes the handoff to the right with H leading. Z sells a block for a step, then goes deep. A pulls up and throws it to Z over the top. Y and X run deep to clear out the safety and corner.",
+    left: {
+      paths: {
+        C: blk(-1, 1.2), Y: r([[2.5, 4], [1, 19]]), Z: r([[11, 20]]), QB: r([[0.4, -5.3]], { speed: 3 }),
+        A: r([[-3.6, -3.5], [-4.3, -0.5], [-5.8, 1.8]], { speed: 7, end: "block" }),
+        H: r([[1, -5.8], [-1, -5], [-4, -4.2], [-6, -3.8]], { speed: 6, delay: 0.15 }),
+        X: r([[-14, 0.8], [-15, 2.5], [-16.5, 18]], { star: true }),
+      },
+      events: [{ t: 0.6, kind: "handoff", to: "H" }, { t: 2.4, kind: "pass", to: "X" }],
+      notes: "Called Left, same alignment. Looks like Pro Lead to the left: H takes the handoff with A leading. X sells a block, then goes deep, and H pulls up and throws it to him. Y and Z run deep to clear out.",
+    },
+  };
+}
 /** Extra point plays (their own thing, kept out of the 16). Run from the 5: end zone 5 yards away. */
 function flagXP() {
   const r = (pts, o = {}) => ({ pts, ...o });
@@ -917,6 +943,13 @@ if (book.version < 19) {
   const left = proRunsLeft();
   for (const [id, l] of Object.entries(left)) { const p = book.plays.find((x) => x.id === id); if (p && !p.left) p.left = l; }
   book.version = 19;
+}
+// v20: the halfback pass follows the split-back rule: Pro A Pass (A throws to Z called Right; H throws to X called Left).
+if (book.version < 20) {
+  const i = book.plays.findIndex((p) => p.id === "fl_hpass_r");
+  const np = proAPass();
+  if (i >= 0) book.plays[i] = { ...np, align: book.plays[i].align }; else book.plays.push(np);
+  book.version = 20;
 }
 }
 const prefs = store.get(PREFS, {});
