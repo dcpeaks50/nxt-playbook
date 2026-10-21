@@ -23,6 +23,7 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .brand{display:flex;align-items:center;gap:8px;font-weight:900;letter-spacing:.06em;font-size:20px}
 .brand b{background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:2px 8px}
 .brand span{font-weight:600;font-size:13px;color:var(--muted);letter-spacing:.02em}
+#opt{flex-wrap:wrap}
 .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
 .seg button{border:0;background:transparent;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -157,6 +158,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <h1 id="title">Pick a play</h1>
       <input class="title" id="title-in" hidden aria-label="Play name">
       <span id="title-tags"></span>
+      <div class="seg" id="opt" role="group" aria-label="Option" title="Same play, different ending" hidden></div>
       <div class="seg" id="labels" role="group" aria-label="Labels">
         <button data-v="pos">Pos</button><button data-v="num">#</button><button data-v="name">Name</button>
       </div>
@@ -171,6 +173,9 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
       <span id="edit-hint"></span>
       <span class="spacer"></span>
+      <button class="btn sm" id="btn-addopt" title="Same look, different ending (a fake, a pitch, a throw)">+ Option</button>
+      <button class="btn sm" id="btn-renopt" hidden>Rename option</button>
+      <button class="btn sm danger" id="btn-delopt" hidden>Delete option</button>
       <button class="btn sm" id="btn-dupplay">Duplicate play</button>
       <button class="btn sm" id="btn-saveflip" hidden title="Make a mirrored copy (Right ↔ Left)">Save flipped copy</button>
       <button class="btn sm danger" id="btn-delplay">Delete play</button>
@@ -758,6 +763,39 @@ function flagXP() {
   ];
   return { formations, plays };
 }
+const XP_SWEEP_T = 2.1, XP_PITCH_T = 2.3;
+/** Options (same look, different ending), built off the play as it stands so coach edits are kept. */
+function addPlayOptions() {
+  const cp = (o) => JSON.parse(JSON.stringify(o));
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const zr = book.plays.find((p) => p.id === "fl_zrev_r");
+  if (zr && !zr.options) {
+    const P = cp(zr.paths);
+    P.Z = { ...P.Z, dash: "dotted", star: false };
+    P.A = r([[-0.6, -5.5], [4, -5.3], [7.5, -5.3], [10, -3], [11, 1], [11.5, 14]], { speed: 6, curve: true, star: true });
+    P.H = r([[3.5, -2.5], [6, 0.5], [9, 3]], { speed: 6.8, end: "block" });
+    zr.optName = "Reverse";
+    zr.options = [{ name: "Fake", paths: P, events: [{ t: 0.8, kind: "handoff", to: "A" }],
+      notes: "Starts just like the Reverse. A takes the handoff running right, fakes the reverse to Z and keeps it around the right side, with H leading. Z sells the fake all the way back to the left (dotted = fake, no ball). Y and X run deep to clear out." }];
+  }
+  const xj = book.plays.find((p) => p.id === "fl_xpjetslant_r");
+  if (xj && !xj.options) {
+    if (xj.name === "XP Jet Fake Slant") xj.name = "XP Jet";
+    xj.optName = "Slant";
+    const S = cp(xj.paths), xp = S.X.pts;
+    S.X = { ...S.X, dash: undefined, star: true, pts: [...xp, [xp.at(-1)[0] + 1, xp.at(-1)[1] + 4]] }; delete S.X.dash;
+    S.Z = { ...S.Z, star: false }; S.A = r([[12, 1]], { end: "block" });
+    const H = cp(xj.paths), hp = H.H.pts;
+    H.H = { ...H.H, star: true, pts: [...hp, [hp.at(-1)[0], hp.at(-1)[1] + 5]] }; delete H.H.dash;
+    H.Z = r([[S.Z.pts[0][0] - 0.5, 1.5]], { end: "block" });
+    xj.options = [
+      { name: "Sweep", paths: S, events: [{ t: XP_SWEEP_T, kind: "handoff", to: "X" }],
+        notes: "Same look as the slant. X comes in jet motion and the QB hands it to him; he keeps going around the right side for the pylon. A blocks down, Y and C block. H still wheels left for the fake pitch and Z runs the slant as a decoy." },
+      { name: "Pitch H", paths: H, events: [{ t: XP_PITCH_T, kind: "pitch", to: "H" }],
+        notes: "Same look as the slant. QB fakes the jet to X (dotted = fake), then pitches to H wheeling back to the left. H gets outside and turns up for the end zone. Z blocks his man inside; Y and C block, A runs his man off." },
+    ];
+  }
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -951,11 +989,13 @@ if (book.version < 20) {
   if (i >= 0) book.plays[i] = { ...np, align: book.plays[i].align }; else book.plays.push(np);
   book.version = 20;
 }
+// v21: options. Pro Z Reverse gets Reverse | Fake; XP Jet Fake Slant becomes XP Jet with Slant | Sweep | Pitch H.
+if (book.version < 21) { addPlayOptions(); book.version = 21; }
 }
 const prefs = store.get(PREFS, {});
 const state = {
   format: prefs.format || "11", side: prefs.side || "all", formationId: null, type: "all", pkg: "all",
-  playId: null, labels: prefs.labels || "pos", ghost: prefs.ghost !== false,
+  playId: null, opt: 0, labels: prefs.labels || "pos", ghost: prefs.ghost !== false,
   mode: "view", editMode: "play", selPos: null, t: 0, playing: false, rate: 1,
 };
 // Every save keeps the version before it, so Undo can step back through changes (up to 60).
@@ -1065,7 +1105,24 @@ window.addEventListener("online", () => { if (sync.ready && sync.offline) pushNo
 const savePrefs =() => store.set(PREFS, { format: state.format, side: state.side, labels: state.labels, ghost: state.ghost });
 
 const formationById = (id) => book.formations.find((f) => f.id === id);
-const currentPlay = () => book.plays.find((p) => p.id === state.playId) || null;
+const rawPlay = () => book.plays.find((p) => p.id === state.playId) || null;
+// Options: one play, same look, different endings (Reverse | Fake). play.options = [{ name, paths, events, notes, left? }];
+// play.optName names the first one (the play itself). The open option reads and edits as if it were the play.
+const OPT_KEYS = ["paths", "events", "notes", "left"];
+const optNames = (p) => (p?.options?.length ? [p.optName || "Base", ...p.options.map((o) => o.name)] : []);
+function withOption(p, i) {
+  const o = i > 0 && p?.options?.[i - 1]; if (!o) return p;
+  const mine = (k) => OPT_KEYS.includes(k);
+  return new Proxy(p, {
+    get: (t, k) => (mine(k) ? o[k] : t[k]),
+    set: (t, k, v) => { (mine(k) ? o : t)[k] = v; return true; },
+    deleteProperty: (t, k) => { delete (mine(k) ? o : t)[k]; return true; },
+    has: (t, k) => (mine(k) ? k in o : k in t),
+    ownKeys: (t) => [...new Set([...Reflect.ownKeys(t).filter((k) => !mine(k)), ...Reflect.ownKeys(o).filter(mine)])],
+    getOwnPropertyDescriptor: (t, k) => (mine(k) ? (k in o ? { value: o[k], writable: true, enumerable: true, configurable: true } : undefined) : Reflect.getOwnPropertyDescriptor(t, k)),
+  });
+}
+const currentPlay = () => { const p = rawPlay(); return withOption(p, p?.options?.length ? Math.min(state.opt || 0, p.options.length) : 0); };
 const currentFormation = () => { const p = currentPlay(); return p ? formationById(p.formationId) : formationById(state.formationId) || null; };
 
 // ---------------------------------------------------------------- motion
@@ -1461,7 +1518,7 @@ function renderSidebar() {
   const ordered = state.pkg !== "all";
   $("#plays").innerHTML = plays.length
     ? plays.map((p, i) => `<div class="item" aria-current="${state.playId === p.id}" data-p="${p.id}" role="button" tabindex="0">
-        ${ordered ? `<span class="tag">${i + 1}</span>` : ""}<span class="name">${esc(p.name)}</span><span class="tag ${p.type}">${p.type}</span>
+        ${ordered ? `<span class="tag">${i + 1}</span>` : ""}<span class="name">${esc(p.name)}${p.options?.length ? ` <span class="hint">· ${optNames(p).map(esc).join(" / ")}</span>` : ""}</span><span class="tag ${p.type}">${p.type}</span>
         ${ordered ? `<span class="order"><button data-up="${p.id}" aria-label="Move up">▲</button><button data-down="${p.id}" aria-label="Move down">▼</button></span>` : ""}
       </div>`).join("")
     : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
@@ -1497,7 +1554,7 @@ $("#plays").onclick = (e) => {
   const it = e.target.closest("[data-p]"); if (!it) return; openPlay(it.dataset.p);
 };
 $("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
-function openPlay(id) { setPlaying(false); state.formationOnly = false; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
+function openPlay(id) { setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
 $("#btn-newpkg").onclick = () => {
   const name = (prompt("Package name (e.g. “Red zone”, “vs Man”, “Opening script”)") || "").trim();
   if (!name) return;
@@ -1551,12 +1608,33 @@ $("#btn-done").onclick = () => { state.mode = "view"; state.selPos = null; refre
 $("#btn-undo").onclick = undo;
 $("#editmode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.v === "play" && !currentPlay()) return; state.editMode = b.dataset.v; state.selPos = null; setT(0); refresh(); };
 $("#btn-dupplay").onclick = () => {
-  const p = currentPlay(); if (!p) return;
+  const p = rawPlay(); if (!p) return;
   const np = JSON.parse(JSON.stringify(p)); np.id = "p_" + uid(); np.name = p.name + " (copy)";
   book.plays.push(np); save(); state.playId = np.id; refresh();
 };
+$("#opt").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; setPlaying(false); state.opt = +b.dataset.v; state.selPos = null; state.t = 0; refresh(); };
+$("#btn-addopt").onclick = () => {
+  const p = rawPlay(); if (!p) return;
+  const name = (prompt("Name this option (e.g. “Fake”, “Pitch”, “Throw”). It starts as a copy of what's on screen; then change the ending.") || "").trim();
+  if (!name) return;
+  if (!p.options?.length) { p.options = []; p.optName ||= (prompt("And what do you call the play as it is now? (e.g. “Give”)", "Give") || "Give").trim(); }
+  const cur = currentPlay(), o = JSON.parse(JSON.stringify({ name, paths: cur.paths || {}, events: cur.events || [], notes: cur.notes || "" }));
+  p.options.push(o); state.opt = p.options.length; state.selPos = null; save(); refresh();
+};
+$("#btn-renopt").onclick = () => {
+  const p = rawPlay(), i = state.opt || 0; if (!p?.options?.length) return;
+  const name = (prompt("Option name", optNames(p)[i]) || "").trim(); if (!name) return;
+  if (i === 0) p.optName = name; else p.options[i - 1].name = name;
+  save(); refresh();
+};
+$("#btn-delopt").onclick = () => {
+  const p = rawPlay(), i = state.opt || 0; if (!p?.options?.length || i === 0) return;
+  if (!confirm(`Delete the “${p.options[i - 1].name}” option?`)) return;
+  p.options.splice(i - 1, 1); if (!p.options.length) { delete p.options; delete p.optName; }
+  state.opt = 0; save(); refresh();
+};
 $("#btn-delplay").onclick = () => {
-  const p = currentPlay(); if (!p || !confirm(`Delete “${p.name}”?`)) return;
+  const p = rawPlay(); if (!p || !confirm(`Delete “${p.name}”?`)) return;
   book.plays = book.plays.filter((x) => x !== p); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => id !== p.id)));
   save(); state.playId = null; state.mode = "view"; refresh();
 };
@@ -1583,7 +1661,11 @@ function renderTitle() {
   $("#btn-edit").textContent = editing ? "Stop editing" : "Edit";
   $("#editbar").hidden = !editing;
   setSeg($("#editmode"), state.editMode);
-  $("#btn-dupplay").hidden = $("#btn-delplay").hidden = !p;
+  $("#btn-dupplay").hidden = $("#btn-delplay").hidden = $("#btn-addopt").hidden = !p;
+  const on = optNames(rawPlay()), oi = p?.options?.length ? Math.min(state.opt || 0, p.options.length) : 0;
+  $("#opt").hidden = !on.length;
+  $("#opt").innerHTML = on.map((n, i) => `<button data-v="${i}" aria-pressed="${i === oi}">${esc(n)}</button>`).join("");
+  $("#btn-renopt").hidden = !on.length; $("#btn-delopt").hidden = !on.length || oi === 0;
   $("#btn-undo").disabled = !undoStack.length;
   $("#edit-hint").textContent = state.editMode === "formation"
     ? "Drag players to set the formation. Every play in this formation starts from here."
@@ -1736,6 +1818,7 @@ svg.addEventListener("pointermove", (e) => {
         if (q.formationId !== f.id || q.align?.[drag.pos]) continue;
         if (q.paths?.[drag.pos]?.pts) q.paths[drag.pos].pts = mv(q.paths[drag.pos].pts);
         if (q.left?.paths?.[drag.pos]?.pts) q.left.paths[drag.pos].pts = mv(q.left.paths[drag.pos].pts);
+        for (const o of q.options || []) for (const v of [o, o.left]) if (v?.paths?.[drag.pos]?.pts) v.paths[drag.pos].pts = mv(v.paths[drag.pos].pts);
       }
       s.x = x; s.y = y;
     }
@@ -1753,8 +1836,8 @@ svg.addEventListener("pointermove", (e) => {
       const dx = x - cur.x, dy = y - cur.y;
       if (dx || dy) {
         (p.align ||= {})[drag.pos] = [x, y];
-        const path = p.paths[drag.pos];
-        if (path?.pts) path.pts = path.pts.map(([px, py]) => [Math.round((px + dx) * 100) / 100, Math.round((py + dy) * 100) / 100]); // his route comes with him
+        const rp = rawPlay(), mvp = (path) => { if (path?.pts) path.pts = path.pts.map(([px, py]) => [Math.round((px + dx) * 100) / 100, Math.round((py + dy) * 100) / 100]); };
+        for (const v of [rp, ...(rp.options || [])]) mvp(v.paths?.[drag.pos]); // his route comes with him, in every option
       }
     }
   }
@@ -1831,8 +1914,10 @@ $("#print-go").onclick = () => {
   const what = printWhat();
   const per = +($("#pper").querySelector('[aria-pressed="true"]')?.dataset.v || 2);
   const ink = $("#pink").checked, notes = $("#pnotes").checked, showD = $("#pghost").checked;
-  let base = what === "one" ? [currentPlay()].filter(Boolean) : what === "list" ? visiblePlays() : allPlaysSorted();
+  let base = what === "one" ? [rawPlay()].filter(Boolean) : what === "list" ? visiblePlays() : allPlaysSorted();
   if (!base.length) { alert("No plays to print."); return; }
+  // A play with options prints a card for each one ("Pro Z Reverse: Fake").
+  base = base.flatMap((p) => (p.options?.length ? optNames(p).map((n, i) => { const v = withOption(p, i); return { ...v, left: v.left, name: `${p.name}: ${n}` }; }) : [p]));
   const dir = $("#pdir").querySelector('[aria-pressed="true"]')?.dataset.v || "R";
   // Each entry: the play plus whether to print it mirrored (Left). "Both" prints Right then Left.
   const plays = base.flatMap((p) => (dir === "B" ? [{ p, L: false }, { p, L: true }] : [{ p, L: dir === "L" }]));
@@ -1882,6 +1967,7 @@ $("#file").onchange = async (e) => {
 
 // ---------------------------------------------------------------- go
 function refresh() {
+  if (state.optFor !== state.playId) { state.opt = 0; state.optFor = state.playId; } // a different play starts on its first option
   // Keep the open play (and formation) in step with the format / side on screen.
   const shown = new Set(visibleFormations().map((f) => f.id));
   if (state.formationId && !shown.has(state.formationId)) state.formationId = null;
