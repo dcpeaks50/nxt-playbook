@@ -991,6 +991,14 @@ if (book.version < 20) {
 }
 // v21: options. Pro Z Reverse gets Reverse | Fake; XP Jet Fake Slant becomes XP Jet with Slant | Sweep | Pitch H.
 if (book.version < 21) { addPlayOptions(); book.version = 21; }
+// v22: Load is dropped for now (Split, Pro, Bunch + the XP Jet extra-point look).
+if (book.version < 22) {
+  const gone = new Set(book.plays.filter((p) => p.formationId === "fl_load_r").map((p) => p.id));
+  book.plays = book.plays.filter((p) => !gone.has(p.id));
+  book.formations = book.formations.filter((f) => f.id !== "fl_load_r");
+  for (const k of book.packages) k.playIds = k.playIds.filter((id) => !gone.has(id));
+  book.version = 22;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
