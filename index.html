@@ -688,6 +688,25 @@ function proRuns() {
       notes: "Backs cross. QB fakes to H crossing left in front of him (dotted = fake, no ball), then hands to A coming behind, who hits it to the call side outside Y. Y and C block down, Z takes the corner, X runs off." },
   ];
 }
+/** Called Left, Pro's runs keep the same alignment (Y right, H right, A left): H carries to the left and A leads. */
+function proRunsLeft() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const blk = (x, y, o = {}) => r([[x, y]], { end: "block", ...o });
+  return {
+    fl_prolead_r: { paths: {
+      C: blk(-1, 1.2), Y: blk(1.2, 1.3), X: blk(-12.5, 3), Z: r([[11, 10]]), QB: r([[0.4, -5.3]], { speed: 3 }),
+      A: r([[-3.6, -3.5], [-4.3, -0.5], [-5.8, 1.8]], { speed: 7, end: "block" }),
+      H: r([[1, -5.8], [-1, -5], [-3, -2.5], [-3.5, 1], [-4, 12]], { speed: 6.3, delay: 0.15, curve: true, star: true }),
+    }, events: [{ t: 0.6, kind: "handoff", to: "H" }],
+      notes: "Called Left: same alignment. H (the right back) takes the handoff and hits it inside to the left. A leads through first and gets out of there fast. C blocks left, Y blocks back inside, X takes the corner, Z runs his man off." },
+    fl_procross_r: { paths: {
+      C: blk(-0.5, 1.2), Y: blk(1.2, 1.3), X: blk(-12.5, 3), Z: r([[11, 10]]), QB: r([[0.4, -5.1], [-0.4, -5.4]], { speed: 3 }),
+      A: r([[-1, -5.4], [3, -4.4], [5.5, -1]], { speed: 6.3, dash: "dotted" }),
+      H: r([[1.5, -6.6], [-1.3, -5.8], [-3.2, -2.5], [-3.6, 1], [-4, 12]], { speed: 6.3, delay: 0.45, curve: true, star: true }),
+    }, events: [{ t: 1.05, kind: "handoff", to: "H" }],
+      notes: "Called Left: same alignment. QB fakes to A crossing right in front of him (dotted = fake), then hands to H coming behind, who hits it inside to the left. C blocks left, Y blocks back inside, X takes the corner, Z runs off." },
+  };
+}
 /** Extra point plays (their own thing, kept out of the 16). Run from the 5: end zone 5 yards away. */
 function flagXP() {
   const r = (pts, o = {}) => ({ pts, ...o });
@@ -892,6 +911,12 @@ if (book.version < 18) {
   for (const p of proRuns()) if (!book.plays.some((x) => x.id === p.id)) book.plays.push(p);
   for (const k of book.packages) { const i = k.playIds.indexOf("fl_prosweep_r"); if (i >= 0) k.playIds.splice(i, 1, "fl_prolead_r"); }
   book.version = 18;
+}
+// v19: split-back runs keep their alignment when called Left: H carries left, A leads; Y stays on the right.
+if (book.version < 19) {
+  const left = proRunsLeft();
+  for (const [id, l] of Object.entries(left)) { const p = book.plays.find((x) => x.id === id); if (p && !p.left) p.left = l; }
+  book.version = 19;
 }
 }
 const prefs = store.get(PREFS, {});
@@ -1182,14 +1207,16 @@ const mirrorP = (p) => p && { ...p, paths: Object.fromEntries(Object.entries(p.p
 // A play can move players from where the formation puts them (play.align), without changing the other plays.
 const effFormation = (p, f) => (!f || !p?.align ? f : { ...f, spots: f.spots.map((s) => (p.align[s.pos] ? { ...s, x: p.align[s.pos][0], y: p.align[s.pos][1] } : s)) });
 const baseEditing = () => state.mode === "edit" && state.editMode === "formation";
-const viewFormation = () => { const f = baseEditing() ? currentFormation() : effFormation(currentPlay(), currentFormation()); return state.flip ? mirrorF(f) : f; };
-const viewPlay = () => (state.flip ? mirrorP(currentPlay()) : currentPlay());
+// Left: most plays mirror. A play with its own "left" version (split-back runs) keeps everyone where they line up and uses that instead.
+const leftOf = (p) => (p && p.left ? { ...p, paths: p.left.paths, events: p.left.events, notes: p.left.notes ?? p.notes } : null);
+const viewFormation = () => { const p = currentPlay(), f = baseEditing() ? currentFormation() : effFormation(p, currentFormation()); return state.flip && !p?.left ? mirrorF(f) : f; };
+const viewPlay = () => { const p = currentPlay(); return state.flip ? leftOf(p) || mirrorP(p) : p; };
 const flipName = (name) => { const n = name.replace(/\b(Right|Left|right|left)\b/g, (w) => ({ Right: "Left", Left: "Right", right: "left", left: "right" }[w])); return n === name ? name + " (flipped)" : n; };
 function ghostFormation(f) {
   if (!state.ghost || !f) return null;
   const other = f.side === "O" ? "D" : "O";
   const g = book.formations.find((g) => g.format === f.format && g.side === other) || null;
-  return state.flip ? mirrorF(g) : g;
+  return state.flip && !currentPlay()?.left ? mirrorF(g) : g;
 }
 function nameFor(f, pos) {
   const id = f.lineup?.[pos];
@@ -1336,7 +1363,7 @@ function playMarkup(f, play, t, { editing = false, ghost = null, ink = false } =
 // ---------------------------------------------------------------- playback
 let last = 0;
 function setT(t) {
-  const d = playDuration(currentPlay(), viewFormation());
+  const d = playDuration(viewPlay(), viewFormation());
   state.t = Math.max(0, Math.min(d, t));
   $("#scrub").value = d ? Math.round((state.t / d) * 1000) : 0;
   $("#time").textContent = `${state.t.toFixed(1)}s / ${d.toFixed(1)}s`;
@@ -1348,7 +1375,7 @@ function setT(t) {
 function tick(ts) {
   if (!state.playing) return;
   const dt = last ? (ts - last) / 1000 : 0; last = ts;
-  const d = playDuration(currentPlay(), viewFormation());
+  const d = playDuration(viewPlay(), viewFormation());
   if (state.t >= d) { setPlaying(false); return; }
   setT(state.t + dt * state.rate);
   requestAnimationFrame(tick);
@@ -1358,12 +1385,12 @@ function setPlaying(on) {
   state.playing = on;
   $("#btn-play").textContent = on ? "❚❚" : "▶";
   $("#btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
-  if (on) { if (state.t >= playDuration(currentPlay(), viewFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
+  if (on) { if (state.t >= playDuration(viewPlay(), viewFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
 }
 $("#btn-play").onclick = () => setPlaying(!state.playing);
 $("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
 $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
-$("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(currentPlay(), viewFormation())); };
+$("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(viewPlay(), viewFormation())); };
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input,textarea,select")) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && state.mode === "edit") { e.preventDefault(); undo(); return; }
@@ -1531,7 +1558,7 @@ function renderDetails() {
   if (!f) { $("#details").innerHTML = `<div class="box"><h3>Get started</h3><p class="hint">Pick 5v5, 7v7 or 11v11 at the top, then a formation and a play. Hit ▶ to run it, ½× to slow it down, or drag the bar to step through it.</p></div>`; return; }
   let h = "";
   if (p) {
-    h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(dirText(p.notes)) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
+    h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(state.flip && p.left ? (p.left.notes ?? p.notes) : dirText(p.notes)) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
     h += `<div class="box"><h3>Packages</h3>${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(p.id) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
       ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
       <div class="row"><label>End zone</label><select id="pgoal">${[["", "None"], ["5", "5 yds away"], ["10", "10 yds away"], ["14", "14 yds away"], ["20", "20 yds away"]].map(([v, l]) => `<option value="${v}" ${String(p.goal || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}</div>`;
@@ -1772,11 +1799,11 @@ $("#print-go").onclick = () => {
     html += `<section class="ppage" style="grid-template-columns:repeat(${grid[0]},1fr);grid-template-rows:repeat(${grid[1]},minmax(0,1fr))">`;
     plays.slice(i, i + per).forEach(({ p: p0, L }, j) => {
       const f0 = effFormation(p0, formationById(p0.formationId));
-      const f = L ? mirrorF(f0) : f0, p = L ? mirrorP(p0) : p0;
+      const own = L && p0.left, f = L && !own ? mirrorF(f0) : f0, p = own ? leftOf(p0) : L ? mirrorP(p0) : p0;
       const W = WIDTH[f.format];
       const other = book.formations.find((g) => g.format === f.format && g.side !== f.side);
-      const ghost = showD && other ? (L ? mirrorF(other) : other) : null;
-      const nm = (L ? swapLR(p.name) : p.name) + (dir === "B" ? (L ? " · Left" : " · Right") : ""), nt = L ? swapLR(p.notes) : p.notes;
+      const ghost = showD && other ? (L && !own ? mirrorF(other) : other) : null;
+      const nm = (L ? swapLR(p.name) : p.name) + (dir === "B" ? (L ? " · Left" : " · Right") : ""), nt = own ? p.notes : L ? swapLR(p.notes) : p.notes;
       html += `<div class="pcard"><div class="ph">${plays.length > 1 ? `<span class="pnum">${i + j + 1}</span>` : ""}<span class="pn">${esc(nm)}</span><span class="pt">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"} · ${esc(formName(f0, L))} · ${p.type}${p.snap ? " · motion" : ""}</span></div>
         <svg viewBox="${-W / 2 - 1.5} 0 ${W + 3} ${TOP - BOTTOM}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">${playMarkup(f, p, 0, { ink, ghost })}</svg>
         ${notes && nt ? `<div class="pnote">${esc(nt)}</div>` : ""}</div>`;
