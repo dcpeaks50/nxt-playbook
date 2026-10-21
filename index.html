@@ -838,6 +838,23 @@ function addMoreOptions() {
     if (!lead.options.length) { delete lead.options; delete lead.optName; }
   }
 }
+/** Bunch Bobble Head: everybody floods right short; C and A sneak out left and put the corner in a bind. */
+const BOBBLE_T = { wheel: 2.2, c: 2.0 };
+function bunchBobbleHead() {
+  const r = (pts, o = {}) => ({ pts, ...o });
+  const paths = {
+    QB: r([[0, -6.5]], { speed: 3 }),
+    X: r([[-2.5, 2], [4, 3], [10, 3.5]]), Y: r([[2.5, 4], [8, 4]]), Z: r([[7, 1.5], [13, 2]]), H: r([[5, -5], [10, -2.5]]),
+    C: r([[-0.5, 3.5], [-3, 6.5], [-8, 7.5], [-13, 7.5]], { curve: true }),
+    A: r([[-5, -5.5], [-10, -3], [-13, 0], [-14, 4], [-14, 16]], { curve: true, star: true }),
+  };
+  const withStar = (pos) => Object.fromEntries(Object.entries(JSON.parse(JSON.stringify(paths))).map(([k, v]) => { if (k === pos) v.star = true; else delete v.star; return [k, v]; }));
+  return { id: "fl_bunchbobble_r", name: "Bunch Bobble Head", formationId: "fl_bunch_r", type: "pass", paths: withStar("A"),
+    events: [{ t: BOBBLE_T.wheel, kind: "pass", to: "A" }], optName: "Wheel",
+    notes: "Everybody floods right short (X drags across, Y runs a 3, Z to the flat, H swings) to drag the defense that way. C curves back to the left about 7 yards deep and A wheels up the left sideline. The left corner can't guard both: if he sits on C, throw A the wheel; if he runs with A, hit C.",
+    options: [{ name: "C", paths: withStar("C"), events: [{ t: BOBBLE_T.c, kind: "pass", to: "C" }],
+      notes: "Same play. The left corner ran with A on the wheel, so C is open: throw it to him as he curves out at 7 yards." }] };
+}
 // The old 7v7 offense (Gun formations, Spread, old Bunch) replaced by the flag playbook.
 const OLD_7V7_FORMATIONS = ["f7s", "f7b", "f7split", "f7slot", "f7twins"];
 const OLD_7V7_PLAYS = ["p7slant", "p7verts", "p7jet", "p7smash", "p7rev", "p7revfake", "p7hbpass", "p7ladder", "p7hitchgo", "p7spr", "p7sprf", "p7spl", "p7splf", "p7sr23", "p7sl23"];
@@ -1043,6 +1060,14 @@ if (book.version < 22) {
 }
 // v23: options for the other runs and trick plays; Pro Cross and Pro A Pass become options of Pro Lead.
 if (book.version < 23) { addMoreOptions(); book.version = 23; }
+// v24: Bunch Bobble Head.
+if (book.version < 24) {
+  if (book.formations.some((f) => f.id === "fl_bunch_r") && !book.plays.some((p) => p.id === "fl_bunchbobble_r")) {
+    book.plays.push(bunchBobbleHead());
+    for (const id of ["pk_trick", "pk_zone"]) book.packages.find((k) => k.id === id)?.playIds.push("fl_bunchbobble_r");
+  }
+  book.version = 24;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
