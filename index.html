@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261021135132">
+<meta name="nxt-build" content="20261021140704">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -2268,11 +2268,12 @@ function practiceTimes(pr) {
 const ptimeHtml = (from, to, m) => `${clock(from)}<small>to ${clock(to)} · ${m} min</small>`;
 /** The running tally against the practice clock: how many minutes are still open. */
 function practiceTally() {
-  const pr = book.practice, { fixed, flexMin } = practiceTimes(pr), fb = pr.blocks.find((b) => b.flex), left = pr.length - fixed;
-  const pct = Math.min(100, Math.round((fixed / pr.length) * 100));
+  const pr = book.practice, { fixed, flexMin } = practiceTimes(pr), fb = pr.blocks.find((b) => b.flex);
+  const used = fixed + (fb ? flexMin : 0), left = pr.length - used;
+  const pct = Math.min(100, Math.round((used / pr.length) * 100));
   const head = left < 0 ? `<span class="big over">${-left} min over</span>` : left === 0 ? `<span class="big done">All ${pr.length} min planned</span>` : `<span class="big ok">${left} min left</span>`;
-  const sub = left < 0 ? `The blocks add up to ${fixed} of ${pr.length} minutes. Trim something or make practice longer.`
-    : `${fixed} of ${pr.length} min planned · ${clock(toMin(pr.start))} to ${clock(toMin(pr.start) + pr.length)}${fb && left > 0 ? ` · ${esc(fb.name)} gets the ${flexMin} min left` : ""}`;
+  const sub = left < 0 ? `The blocks add up to ${used} of ${pr.length} minutes. Trim something or make practice longer.`
+    : `${used} of ${pr.length} min planned · ${clock(toMin(pr.start))} to ${clock(toMin(pr.start) + pr.length)}${fb ? ` · ${esc(fb.name)} fills the last ${flexMin} min` : ""}`;
   return `${head}<div class="hint" style="margin:2px 0 0">${sub}</div><div class="pbar"><i class="${left < 0 ? "over" : ""}" style="width:${pct}%"></i></div>`;
 }
 /** Update times and the tally in place (keeps the cursor in the box you're typing in). */
@@ -2333,9 +2334,8 @@ $("#practice").addEventListener("change", (e) => {
   else if (t.id === "pr-end") { let d = toMin(t.value) - toMin(pr.start); if (d <= 0) d += 1440; pr.length = d; }
   else if (b && k === "min") b.min = Math.max(0, Math.min(180, Math.round(+t.value || 0)));
   else if (b && k === "flex") {
-    const left = practiceTimes(pr).flexMin;
-    pr.blocks.forEach((x) => { if (x.flex && x !== b) { x.min = left; delete x.flex; } });
-    if (t.checked) b.flex = true; else { b.min = left; delete b.flex; }
+    pr.blocks.forEach((x) => { if (x.flex && x !== b) delete x.flex; });
+    if (t.checked) b.flex = true; else delete b.flex;
   }
   else if (b && k === "name") { save(); renderPractice(); return; } // a block renamed to/from "Water" changes shape
   else return;
