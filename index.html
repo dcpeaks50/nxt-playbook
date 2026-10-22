@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261022183318">
+<meta name="nxt-build" content="20261022183737">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -1923,14 +1923,15 @@ const dirText = (s) => (state.flip ? swapLR(s) : s);
 const formName = (f, flip = state.flip) => (/\b(Right|Left)\b/.test(f.name) ? (flip ? swapLR(f.name) : f.name) : f.id.startsWith("fl_") ? `${f.name} ${flip ? "Left" : "Right"}` : f.name);
 /** Play name as coaches read it: formation, then the side, then the play ("Split Right H Tornado"). Follows the Right | Left switch.
  *  The stored name can include the formation or not; it's added (once) either way. */
-const playName = (p, flip = state.flip) => {
+const playName = (p, flip = state.flip, opt = "") => {
   const f = p && formationById(p.formationId);
-  if (!f || f.side !== "O" || !f.id.startsWith("fl_")) return flip ? swapLR(p?.name) : p?.name || "";
+  const withOpt = (base) => { const have = new Set(base.toLowerCase().split(" ")), extra = String(opt).split(" ").filter((w) => w && !have.has(w.toLowerCase())).join(" "); return extra ? `${base} ${extra}` : base; };
+  if (!f || f.side !== "O" || !f.id.startsWith("fl_")) return withOpt(flip ? swapLR(p?.name) : p?.name || "");
   const base = f.name.replace(/s*(Right|Left)/g, "").trim();
   let rest = p.name.replace(/s*(Right|Left)/g, "").trim();
   if (rest.toLowerCase() === base.toLowerCase()) rest = "";
   else if (rest.toLowerCase().startsWith(base.toLowerCase() + " ")) rest = rest.slice(base.length).trim();
-  return `${base} ${flip ? "Left" : "Right"}${rest ? " " + rest : ""}`;
+  return withOpt(`${base} ${flip ? "Left" : "Right"}${rest ? " " + rest : ""}`);
 };
 $("#btn-saveflip").onclick = () => {
   const p = currentPlay(), f = currentFormation(); if (!p || !f) return;
@@ -1999,7 +2000,7 @@ $("#title-in").oninput = (e) => { const p = currentPlay(); if (p) { p.name = e.t
 function renderTitle() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
   $("#title").hidden = editing && !!p; $("#title-in").hidden = !(editing && p);
-  $("#title").textContent = p ? playName(p) : f ? formName(f) : "Pick a play";
+  $("#title").textContent = p ? playName(p, state.flip, optNames(rawPlay())[Math.min(state.opt || 0, rawPlay().options?.length || 0)] || "") : f ? formName(f) : "Pick a play";
   setSeg($("#dir"), state.flip ? "L" : "R");
   $("#dir").querySelectorAll("button").forEach((b) => (b.disabled = editing));
   $("#btn-saveflip").hidden = true;
@@ -2270,8 +2271,8 @@ $("#print-go").onclick = () => {
   const ink = $("#pink").checked, notes = $("#pnotes").checked, showD = $("#pghost").checked;
   let base = what === "one" ? [rawPlay()].filter(Boolean) : what === "list" ? visiblePlays() : allPlaysSorted();
   if (!base.length) { alert("No plays to print."); return; }
-  // A play with options prints a card for each one ("Pro Z Reverse: Fake").
-  base = base.flatMap((p) => (p.options?.length ? optNames(p).map((n, i) => { const v = withOption(p, i); return { ...v, left: v.left, name: `${p.name}: ${n}` }; }) : [p]));
+  // A play with options prints a card for each one ("Pro Right Z Reverse Fake").
+  base = base.flatMap((p) => (p.options?.length ? optNames(p).map((n, i) => { const v = withOption(p, i); return { ...v, left: v.left, name: p.name, optLabel: n }; }) : [p]));
   const dir = $("#pdir").querySelector('[aria-pressed="true"]')?.dataset.v || "R";
   // Each entry: the play plus whether to print it mirrored (Left). "Both" prints Right then Left.
   const plays = base.flatMap((p) => (dir === "B" ? [{ p, L: false }, { p, L: true }] : [{ p, L: dir === "L" }]));
@@ -2280,7 +2281,7 @@ $("#print-go").onclick = () => {
   let html = "";
   if (plays.length > 1) {
     const title = what === "list" && state.pkg !== "all" ? book.packages.find((k) => k.id === state.pkg)?.name : what === "all" ? "Playbook" : "Plays";
-    const label = ({ p, L }) => { const f = formationById(p.formationId); return `<li><b>${esc(playName(p, L))}</b> <span>${f.format}v${f.format} · ${esc(formName(f, L))}</span></li>`; };
+    const label = ({ p, L }) => { const f = formationById(p.formationId); return `<li><b>${esc(playName(p, L, p.optLabel))}</b> <span>${f.format}v${f.format} · ${esc(formName(f, L))}</span></li>`; };
     html += `<section class="ppage pindex"><div><h1>NXT ${esc(title || "Plays")}</h1><p>${plays.length} plays · printed ${new Date().toLocaleDateString()}</p><ol>${plays.map(label).join("")}</ol></div></section>`;
   }
   for (let i = 0; i < plays.length; i += per) {
@@ -2291,7 +2292,7 @@ $("#print-go").onclick = () => {
       const W = WIDTH[f.format];
       const other = book.formations.find((g) => g.format === f.format && g.side !== f.side);
       const ghost = showD && other ? (L && !own ? mirrorF(other) : other) : null;
-      const nm = playName(p0, L), nt = own ? p.notes : L ? swapLR(p.notes) : p.notes;
+      const nm = playName(p0, L, p0.optLabel), nt = own ? p.notes : L ? swapLR(p.notes) : p.notes;
       html += `<div class="pcard"><div class="ph">${plays.length > 1 ? `<span class="pnum">${i + j + 1}</span>` : ""}<span class="pn">${esc(nm)}</span><span class="pt">${f.format}v${f.format} ${f.side === "O" ? "Offense" : "Defense"} · ${esc(formName(f0, L))} · ${p.type}${p.snap ? " · motion" : ""}</span></div>
         <svg viewBox="${-W / 2 - 1.5} 0 ${W + 3} ${TOP - BOTTOM}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">${playMarkup(f, p, 0, { ink, ghost })}</svg>
         ${notes && nt ? `<div class="pnote">${esc(nt)}</div>` : ""}</div>`;
