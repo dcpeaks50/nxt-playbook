@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261022175254">
+<meta name="nxt-build" content="20261022175935">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -965,19 +965,8 @@ function proStack() {
       { name: "C Check", ...v("C"), notes: "Same play, dump it to C sitting in the middle when everyone downfield is covered." },
     ] };
 }
-/** Pro H Smoke: H shifts out to stack behind Z, then a quick smoke screen to him with Z and Y blocking. */
-const PROSMOKE_T = { snap: 2.3, throw: 2.75 };
-function proSmoke() {
-  const r = (pts, o = {}) => ({ pts, ...o }), blk = (x, y) => r([[x, y]], { end: "block" });
-  return { id: "fl_prosmoke_r", name: "Pro H Smoke", formationId: "fl_pro_r", type: "pass", snap: PROSMOKE_T.snap,
-    paths: {
-      QB: r([[0, -5.6]], { speed: 3 }), C: r([[0, 5]]),
-      H: r([[11, -3.4], [12.5, -3.9], [14, -3.2], [14.5, -1.5]], { shift: true, curve: true, star: true }),
-      Z: blk(12.5, 3), Y: blk(6, 2.5), X: r([[-15, 20]]), A: r([[-3, -4.5], [-6, -2]]),
-    },
-    events: [{ t: PROSMOKE_T.throw, kind: "pass", to: "H" }],
-    notes: "H shifts out and lines up right behind Z. Everyone sets, then the snap. The QB throws it right away to H, who pops out to the right for the quick screen (a 0, smoke). Z blocks the corner in front of him and Y blocks to the outside. X runs a 9 to clear out, A checks left." };
-}
+/** Pro H Shift Smoke (as the coach tuned it): H turns and catches the smoke standing, then goes upfield; Double Pass option, H throws to Z on a go. */
+const proSmoke = () => ({"id":"fl_prosmoke_r","name":"Pro H Shift Smoke","formationId":"fl_pro_r","type":"pass","snap":2.3,"paths":{"QB":{"pts":[[0,-5.6]],"speed":3},"C":{"pts":[[0,5]]},"H":{"pts":[[11,-3.4],[12.5,-2.3],[14,1],[14.5,14]],"shift":true,"curve":true,"star":true,"delay":1.32},"Z":{"pts":[[12.5,3]],"end":"block"},"Y":{"pts":[[6,2.5]],"end":"block"},"X":{"pts":[[-15,20]]},"A":{"pts":[[-3,-4.5],[-6,-2]]}},"events":[{"t":2.75,"kind":"pass","to":"H"}],"notes":"H shifts out and lines up right behind Z. Everyone sets, then the snap. The QB throws it right away to H, who just turns to the ball and catches it (a 0, smoke), then turns upfield outside Z's block. Z blocks the corner and Y blocks to the outside. X runs a 9 to clear out, A checks left.","optName":"Smoke","options":[{"name":"Double Pass","paths":{"QB":{"pts":[[0,-5.6]],"speed":3},"C":{"pts":[[0,5]]},"H":{"pts":[[11,-3.4]],"shift":true,"curve":true},"Z":{"pts":[[13,20]],"star":true},"Y":{"pts":[[6,2.5]],"end":"block"},"X":{"pts":[[-15,20]]},"A":{"pts":[[-3,-4.5],[-6,-2]]}},"events":[{"t":2.75,"kind":"pass","to":"H"},{"t":4.12,"kind":"pass","to":"Z"}],"notes":"Double pass. Same look: the QB throws the smoke and H turns and catches it. This time Z doesn’t block. He runs a 9 (go) right past the corner who’s coming up to stop the screen, and H sets and throws it deep to Z."}]});
 /** H Under: H takes the snap and tosses it back to the QB, who (not having taken the snap) runs the option with A. */
 const HUNDER_T = { toss: 0.3, pitch: 2.1 }, HUNDER_H = [[0.4, -3], [3, -1.4], [5.5, 1.5]]; // v26 (kept for the v27 migration)
 const HUNDER_NOTES = "Trick play. H lines up under center like a QB and takes the snap. He turns and steps back to his right, then shuffles it back to the QB, who is lined up behind him off to the right. Then H leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.";
