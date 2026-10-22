@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261022183737">
+<meta name="nxt-build" content="20261022184102">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -1805,7 +1805,7 @@ $("#btn-play").onclick = () => {
   if (!currentPlay()) { const f = currentFormation(), q = f && visiblePlays().find((x) => x.formationId === f.id); if (!q) return; openPlay(q.id); }
   setPlaying(!state.playing);
 };
-$("#formplays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; openPlay(b.dataset.p); setPlaying(true); };
+$("#formplays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; openPlay(b.dataset.p); toStage(); }; // opens it; the coach hits play
 $("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
 $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
 $("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(viewPlay(), viewFormation())); };
@@ -2009,7 +2009,7 @@ function renderTitle() {
   const fo = !p && f && state.formationOnly && !editing, fps = fo ? visiblePlays().filter((q) => q.formationId === f.id) : [];
   $("#formplays").hidden = !fo;
   if (fo) $("#formplays").innerHTML = fps.length
-    ? `<b>This is just the ${esc(formName(f))} formation. Tap a play to run it:</b>${fps.map((q) => `<button class="btn primary" data-p="${q.id}">▶ ${esc(playName(q))}</button>`).join("")}`
+    ? `<b>This is just the ${esc(formName(f))} formation. Tap a play to open it:</b>${fps.map((q) => `<button class="btn primary" data-p="${q.id}">${esc(playName(q))}</button>`).join("")}`
     : `<b>This is just the ${esc(formName(f))} formation. It has no plays yet.</b>`;
   $("#btn-edit").textContent = editing ? "Stop editing" : "Edit";
   $("#editbar").hidden = !editing;
