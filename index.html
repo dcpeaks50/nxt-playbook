@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261022182339">
+<meta name="nxt-build" content="20261022183318">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -967,6 +967,27 @@ function proStack() {
 }
 /** Pro H Shift Smoke (as the coach tuned it): H turns and catches the smoke standing, then goes upfield; Double Pass option, H throws to Z on a go. */
 const proSmoke = () => ({"id":"fl_prosmoke_r","name":"Pro H Shift Smoke","formationId":"fl_pro_r","type":"pass","snap":2.3,"paths":{"QB":{"pts":[[0,-5.6]],"speed":3},"C":{"pts":[[0,5]]},"H":{"pts":[[11,-3.4],[12.5,-2.3],[14,1],[14.5,14]],"shift":true,"curve":true,"star":true,"delay":1.32},"Z":{"pts":[[12.5,3]],"end":"block"},"Y":{"pts":[[6,2.5]],"end":"block"},"X":{"pts":[[-15,20]]},"A":{"pts":[[-3,-4.5],[-6,-2]]}},"events":[{"t":2.75,"kind":"pass","to":"H"}],"notes":"H shifts out and lines up right behind Z. Everyone sets, then the snap. The QB throws it right away to H, who just turns to the ball and catches it (a 0, smoke), then turns upfield outside Z's block. Z blocks the corner and Y blocks to the outside. X runs a 9 to clear out, A checks left.","optName":"Smoke","options":[{"name":"Double Pass","paths":{"QB":{"pts":[[0,-5.6]],"speed":3},"C":{"pts":[[0,5]]},"H":{"pts":[[11,-3.4]],"shift":true,"curve":true},"Z":{"pts":[[13,20]],"star":true},"Y":{"pts":[[6,2.5]],"end":"block"},"X":{"pts":[[-15,20]]},"A":{"pts":[[-3,-4.5],[-6,-2]]}},"events":[{"t":2.75,"kind":"pass","to":"H"},{"t":4.12,"kind":"pass","to":"Z"}],"notes":"Double pass. Same look: the QB throws the smoke and H turns and catches it. This time Z doesn’t block. He runs a 9 (go) right past the corner who’s coming up to stop the screen, and H sets and throws it deep to Z."}]});
+/** Split Z Orbit: Z motions fast around behind the QB and takes the handoff going left. Options: Z throws to A; fake the orbit, QB rolls right to H. */
+const ORBIT_T = { snap: 1.6, give: 2.36, zPass: 3.95, hOut: 3.3 };
+function splitOrbit() {
+  const r = (pts, o = {}) => ({ pts, ...o }), blk = (x, y) => r([[x, y]], { end: "block" }), T = ORBIT_T;
+  const orbit = [[12, -2.6], [6, -5.6], [2, -6.9], [-2, -6.9], [-6, -5.6], [-10, -3], [-12.5, 1], [-13, 14]];
+  const zMo = { speed: 7, curve: true, motion: true };
+  const routes = { X: r([[-15, 20]]), A: r([[-8, 10], [-14, 10]]), H: r([[8, 5], [13, 5]]) };
+  const strip = (paths) => Object.fromEntries(Object.entries(paths).map(([k, v]) => { const q = JSON.parse(JSON.stringify(v)); delete q.star; return [k, q]; }));
+  const main = { QB: r([[0, -5.7]], { speed: 3 }), Z: r(orbit, { ...zMo, star: true }), C: blk(-1, 1.2), Y: blk(1, 1.3), ...routes };
+  const zPass = { ...strip(main), Z: r(orbit.slice(0, 5).concat([[-9, -4.2], [-10, -3.8]]), zMo), A: r([[-8, 10], [-14, 10]], { star: true }) };
+  const fake = { ...strip(main), Z: r(orbit, { ...zMo, dash: "dotted" }), QB: r([[0, -5.7], [3, -6.4], [6.5, -5.6]], { speed: 4, delay: 0.55 }), Y: blk(3.5, 1.3), H: r([[8, 5], [13, 5]], { star: true }) };
+  return { id: "fl_orbit_r", name: "Z Orbit", formationId: "fl_split_r", type: "run", snap: T.snap, optName: "Handoff",
+    paths: main, events: [{ t: T.give, kind: "handoff", to: "Z" }],
+    notes: "Z goes in fast orbit motion, looping around behind the QB. Snap it as he comes across; the QB steps back and hands it to Z going left. X runs a 9 and A runs a deep out to clear that side. C and Y block; H runs his out to the right to pull the defense away.",
+    options: [
+      { name: "Z Pass A", paths: zPass, events: [{ t: T.give, kind: "handoff", to: "Z" }, { t: T.zPass, kind: "pass", to: "A" }],
+        notes: "Same orbit and handoff. Z takes it left, pulls up and throws it to A on the deep out once the defense comes up to stop the run." },
+      { name: "Fake Orbit", paths: fake, events: [{ t: T.hOut, kind: "pass", to: "H" }],
+        notes: "Z runs the orbit with no ball (dotted = fake). The QB fakes the handoff, rolls out to the right and throws to H on the out. Y blocks on the roll-out side." },
+    ] };
+}
 /** H Under: H takes the snap and tosses it back to the QB, who (not having taken the snap) runs the option with A. */
 const HUNDER_T = { toss: 0.3, pitch: 2.1 }, HUNDER_H = [[0.4, -3], [3, -1.4], [5.5, 1.5]]; // v26 (kept for the v27 migration)
 const HUNDER_NOTES = "Trick play. H lines up under center like a QB and takes the snap. He turns and steps back to his right, then shuffles it back to the QB, who is lined up behind him off to the right. Then H leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.";
@@ -1277,6 +1298,14 @@ if (book.version < 32) {
     book.packages.find((k) => k.id === "pk_motion")?.playIds.push("fl_prosmoke_r");
   }
   book.version = 32;
+}
+// v33: Split Z Orbit (Z orbit motion handoff left; Z Pass A; Fake Orbit to H).
+if (book.version < 33) {
+  if (book.formations.some((f) => f.id === "fl_split_r") && !book.plays.some((p) => p.id === "fl_orbit_r")) {
+    book.plays.push(splitOrbit());
+    book.packages.find((k) => k.id === "pk_motion")?.playIds.push("fl_orbit_r");
+  }
+  book.version = 33;
 }
 }
 const prefs = store.get(PREFS, {});
