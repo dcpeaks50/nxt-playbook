@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261022184102">
+<meta name="nxt-build" content="20261023005816">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -988,6 +988,19 @@ function splitOrbit() {
         notes: "Z runs the orbit with no ball (dotted = fake). The QB fakes the handoff, rolls out to the right and throws to H on the out. Y blocks on the roll-out side." },
     ] };
 }
+/** Split A Motion 9: A goes in fast motion across behind the line, then curves up the right side on a 9. Z post, H slant, X 4 (hitch); C and Y block. */
+const A9_T = { snap: 1.3, pass: 3.4 };
+function splitA9() {
+  const r = (pts, o = {}) => ({ pts, ...o }), blk = (x, y) => r([[x, y]], { end: "block" });
+  return { id: "fl_a9_r", name: "A Motion 9", formationId: "fl_split_r", type: "pass", snap: A9_T.snap,
+    paths: {
+      A: r([[-4, -2.8], [1, -3.3], [6, -3.2], [10, -1.6], [11.8, 2], [12.3, 20]], { speed: 7, curve: true, motion: true, star: true }),
+      QB: r([[0, -6.2]], { speed: 3 }), C: blk(0, 1.2), Y: blk(3, 1.3),
+      Z: r([[15, 8], [6, 17]]), H: r([[8.5, 1], [2.5, 5.5]]), X: r([[-15, 5.5], [-14.6, 4.5]]),
+    },
+    events: [{ t: A9_T.pass, kind: "pass", to: "A" }],
+    notes: "A goes in fast motion across from the left, behind the line. Snap as he passes the QB. A keeps going and curves up the right side between H and Z on a 9 (go). Z runs an 8 (post) inside to pull the safety, H runs a 2 (slant) underneath, X runs a 4 (hitch). C and Y block." };
+}
 /** H Under: H takes the snap and tosses it back to the QB, who (not having taken the snap) runs the option with A. */
 const HUNDER_T = { toss: 0.3, pitch: 2.1 }, HUNDER_H = [[0.4, -3], [3, -1.4], [5.5, 1.5]]; // v26 (kept for the v27 migration)
 const HUNDER_NOTES = "Trick play. H lines up under center like a QB and takes the snap. He turns and steps back to his right, then shuffles it back to the QB, who is lined up behind him off to the right. Then H leads to the right. The QB didn't take the snap, so he can run: he runs the option to the right with A trailing outside as the pitch man. If the defender takes A, the QB keeps it and turns up. C, Y and Z block; X runs his man off.";
@@ -1306,6 +1319,14 @@ if (book.version < 33) {
     book.packages.find((k) => k.id === "pk_motion")?.playIds.push("fl_orbit_r");
   }
   book.version = 33;
+}
+// v34: Split A Motion 9 (A fast motion across, 9 up the right side; Z post, H slant, X 4).
+if (book.version < 34) {
+  if (book.formations.some((f) => f.id === "fl_split_r") && !book.plays.some((p) => p.id === "fl_a9_r")) {
+    book.plays.push(splitA9());
+    book.packages.find((k) => k.id === "pk_motion")?.playIds.push("fl_a9_r");
+  }
+  book.version = 34;
 }
 }
 const prefs = store.get(PREFS, {});
