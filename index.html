@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261023005816">
+<meta name="nxt-build" content="20261024165638">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -988,6 +988,20 @@ function splitOrbit() {
         notes: "Z runs the orbit with no ball (dotted = fake). The QB fakes the handoff, rolls out to the right and throws to H on the out. Y blocks on the roll-out side." },
     ] };
 }
+/** Split H Tornado, v35: A runs fly (jet) motion and the QB fakes it to him; then the QB turns and hands to H going left behind him. */
+const TORNADO_T = { snap: 0.7, give: 2.3, pass: 2.7 };
+function tornadoFly() {
+  const r = (pts, o = {}) => ({ pts, ...o }), T = TORNADO_T;
+  const A = r([[-4, -2.6], [0, -3.4], [6, -3], [11, 0], [13, 4], [13, 16]], { speed: 7, curve: true, motion: true });
+  const H = r([[6.5, -4.4], [3.5, -6.5], [0, -7], [-4, -6.6], [-8, -4.4], [-11, -1], [-12, 3], [-12, 16]], { speed: 6.5, curve: true });
+  const rest = { C: r([[1.8, 1.2]], { end: "block" }), QB: r([[0.4, -4.9], [0, -5.7]], { speed: 3 }), Y: r([[5, 1], [10, 2]]), Z: r([[15, 4], [17, 10]]), X: r([[-15, 16]]) };
+  return { snap: T.snap,
+    paths: { ...rest, A: { ...A, dash: "dotted" }, H: { ...H, star: true } },
+    events: [{ t: T.give, kind: "handoff", to: "H" }],
+    notes: "Tornado: A goes in fast fly motion from the left. Snap as he gets to the QB, and the QB fakes it to him (dotted = fake) as he keeps going right. Everybody flows right with him (C, Y and Z). The QB turns back and hands it to H, who loops around behind the QB going left, then up the field. X runs his man off to empty the left side.",
+    pass: { paths: { ...rest, A: { ...A, star: true }, H: { ...H, dash: "dotted" } }, events: [{ t: T.pass, kind: "pass", to: "A" }],
+      notes: "Same look as Tornado. The QB fakes the fly to A, then fakes the handoff to H looping behind him (dotted = fake), then throws to A, who has kept going and turned up the right sideline. X still runs off." } };
+}
 /** Split A Motion 9: A goes in fast motion across behind the line, then curves up the right side on a 9. Z post, H slant, X 4 (hitch); C and Y block. */
 const A9_T = { snap: 1.3, pass: 3.4 };
 function splitA9() {
@@ -1327,6 +1341,17 @@ if (book.version < 34) {
     book.packages.find((k) => k.id === "pk_motion")?.playIds.push("fl_a9_r");
   }
   book.version = 34;
+}
+// v35: Split H Tornado: A fly-motion fake, then H takes the handoff behind the QB (like the orbit).
+if (book.version < 35) {
+  const p = book.plays.find((x) => x.id === "fl_tornado_r");
+  if (p) {
+    const t = tornadoFly();
+    Object.assign(p, { snap: t.snap, paths: t.paths, events: t.events, notes: t.notes });
+    const o = p.options?.find((x) => x.name === "Pass");
+    if (o) Object.assign(o, t.pass);
+  }
+  book.version = 35;
 }
 }
 const prefs = store.get(PREFS, {});
