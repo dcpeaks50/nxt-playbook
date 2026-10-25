@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261024165638">
+<meta name="nxt-build" content="20261025175908">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -1352,6 +1352,23 @@ if (book.version < 35) {
     if (o) Object.assign(o, t.pass);
   }
   book.version = 35;
+}
+// v36: Aussie Option: A and H trade places. A lines up under center and takes the snap; H is the pitch man on the option.
+if (book.version < 36) {
+  const f = book.formations.find((x) => x.id === "fl_hunder_r");
+  const p = book.plays.find((x) => x.id === "fl_hunder_r");
+  if (f && p && p.snapTo === "H") {
+    for (const s of f.spots) if (s.pos === "H") s.pos = "A"; else if (s.pos === "A") s.pos = "H";
+    const sw = (k) => (k === "H" ? "A" : k === "A" ? "H" : k);
+    const swText = (s) => s && s.replace(/\b[HA]\b/g, sw);
+    for (const v of [p, ...(p.options || [])]) {
+      if (v.paths) v.paths = Object.fromEntries(Object.entries(v.paths).map(([k, x]) => [sw(k), x]));
+      for (const e of v.events || []) e.to = sw(e.to);
+      v.notes = swText(v.notes);
+    }
+    p.snapTo = "A";
+  }
+  book.version = 36;
 }
 }
 const prefs = store.get(PREFS, {});
