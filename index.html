@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261025175908">
+<meta name="nxt-build" content="20261026150121">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -1370,6 +1370,16 @@ if (book.version < 36) {
   }
   book.version = 36;
 }
+// v37: Split Jet Sweep's slant option is called "Jet Fake Z2 X9" (shown as Split Right Jet Fake Z2 X9); X runs a full 9.
+if (book.version < 37) {
+  const o = book.plays.find((x) => x.id === "fl_splitjet_r")?.options?.find((x) => x.name === "Fake Jet Slant");
+  if (o) {
+    Object.assign(o, { name: "Jet Fake Z2 X9", full: true });
+    if (o.paths?.X) o.paths.X.pts = [[-15, 20]];
+    o.notes = "Same look as the jet. QB fakes it to A (dotted = fake) and throws Z the 2 (slant) right behind the defense chasing the jet. X runs a 9 to clear out the left side. Y and H block.";
+  }
+  book.version = 37;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
@@ -1990,10 +2000,12 @@ const playName = (p, flip = state.flip, opt = "") => {
   const f = p && formationById(p.formationId);
   const withOpt = (base) => { const have = new Set(base.toLowerCase().split(" ")), extra = String(opt).split(" ").filter((w) => w && !have.has(w.toLowerCase())).join(" "); return extra ? `${base} ${extra}` : base; };
   if (!f || f.side !== "O" || !f.id.startsWith("fl_")) return withOpt(flip ? swapLR(p?.name) : p?.name || "");
-  const base = f.name.replace(/s*(Right|Left)/g, "").trim();
-  let rest = p.name.replace(/s*(Right|Left)/g, "").trim();
+  const base = f.name.replace(/\s*\b(Right|Left)\b/g, "").trim();
+  let rest = p.name.replace(/\s*\b(Right|Left)\b/g, "").trim();
   if (rest.toLowerCase() === base.toLowerCase()) rest = "";
   else if (rest.toLowerCase().startsWith(base.toLowerCase() + " ")) rest = rest.slice(base.length).trim();
+  // An option marked "full" is the whole play call after the side (Split Right + "Jet Fake Z2 X9").
+  if (p.options?.some((o) => o.full && o.name === opt)) return `${base} ${flip ? "Left" : "Right"} ${opt}`;
   return withOpt(`${base} ${flip ? "Left" : "Right"}${rest ? " " + rest : ""}`);
 };
 $("#btn-saveflip").onclick = () => {
