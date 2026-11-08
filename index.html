@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261107154910">
+<meta name="nxt-build" content="20261108174021">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -128,6 +128,20 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .sync[data-tone="warn"]{color:#f59e0b}
 .hist-row{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 #printarea{display:none}
+/* Full screen play: the stage covers the page; only the title, Right | Left, the field and the play controls stay */
+#btn-fsclose,.fsnav{display:none}
+body.fs{overflow:hidden}
+body.fs .stage{position:fixed;inset:0;z-index:60;border:0;border-radius:0;display:flex;flex-direction:column;background:#0b130c;color:#fff}
+body.fs .formplays,body.fs .editbar,body.fs .details,body.fs #title-in,body.fs #title-tags,body.fs #labels,body.fs #btn-ghost,body.fs #btn-edit,body.fs #btn-fs,body.fs #scrub,body.fs #time{display:none}
+body.fs #btn-fsclose,body.fs .fsnav{display:inline-flex;align-items:center;justify-content:center}
+body.fs .titlebar{padding:6px 10px;gap:6px 10px;border:0;background:#0b130c}
+body.fs .titlebar h1{font-size:17px;min-width:0}
+body.fs .fieldwrap{flex:1;min-height:0;align-items:center;touch-action:none}
+body.fs svg#field{width:100%;height:100%;max-height:none}
+body.fs .controls{justify-content:center;padding:6px 10px calc(6px + env(safe-area-inset-bottom));border:0;background:#0b130c}
+body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;border:1px solid #ffffff55;min-width:46px;height:46px;border-radius:23px;font-size:16px}
+.fsnav{width:46px;height:46px;border-radius:50%;border:1px solid #ffffff44;background:transparent;color:#fff;font-size:24px;line-height:1}
+@media (orientation:landscape) and (max-height:520px){body.fs .titlebar{padding:2px 10px}body.fs .titlebar h1{font-size:15px}body.fs .controls{position:absolute;right:8px;bottom:8px;padding:0;background:none;gap:8px}}
 @media print{
   @page{size:letter portrait;margin:0.4in}
   body{background:#fff;color:#000}
@@ -202,6 +216,8 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <button class="btn" id="btn-ghost" aria-pressed="true">Opponent</button>
       <div class="seg" id="dir" role="group" aria-label="Direction" title="Run the play to the right or to the left"><button data-v="R" aria-pressed="true">Right</button><button data-v="L">Left</button></div>
       <button class="btn" id="btn-edit">Edit</button>
+      <button class="btn" id="btn-fs" title="Show the play full screen. Turn the phone sideways to make it bigger.">⛶ Full screen</button>
+      <button class="btn" id="btn-fsclose" aria-label="Close full screen">✕</button>
     </div>
     <div class="formplays" id="formplays" hidden></div>
     <div class="editbar" id="editbar" hidden>
@@ -223,11 +239,13 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     </div>
     <div class="fieldwrap"><svg id="field" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Football field with the play"></svg></div>
     <div class="controls">
+      <button class="fsnav" id="btn-fsprev" aria-label="Previous play">‹</button>
       <button class="play" id="btn-play" aria-label="Play">▶</button>
       <button class="btn" id="btn-rate">1×</button>
       <button class="btn" id="btn-restart" aria-label="Back to the snap">⟲</button>
       <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Play progress">
       <span class="time" id="time">0.0s / 0.0s</span>
+      <button class="fsnav" id="btn-fsnext" aria-label="Next play">›</button>
     </div>
     <div class="details" id="details"></div>
   </main>
@@ -1882,8 +1900,41 @@ $("#formplays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!
 $("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
 $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
 $("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(viewPlay(), viewFormation())); };
+// ---------------------------------------------------------------- full screen (for showing the kids)
+// Tap the field to play / pause, swipe left or right for the next / previous play. Turn the phone sideways to make it bigger.
+const isFs = () => document.body.classList.contains("fs");
+function setFullscreen(on) {
+  if (on === isFs()) return;
+  if (on && state.mode === "edit") $("#btn-done").click();
+  document.body.classList.toggle("fs", on);
+  const el = document.documentElement, doc = document;
+  if (on) (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.catch?.(() => {}); // iPhone Safari has no full screen: the page fills the window instead
+  else if (doc.fullscreenElement || doc.webkitFullscreenElement) (doc.exitFullscreen || doc.webkitExitFullscreen)?.call(doc)?.catch?.(() => {});
+  draw();
+}
+function stepPlay(d) {
+  const list = visiblePlays(), i = list.findIndex((p) => p.id === state.playId), next = list[i + d];
+  if (next) openPlay(next.id);
+}
+$("#btn-fs").onclick = () => setFullscreen(true);
+$("#btn-fsclose").onclick = () => setFullscreen(false);
+$("#btn-fsprev").onclick = () => stepPlay(-1);
+$("#btn-fsnext").onclick = () => stepPlay(1);
+// leaving browser full screen (Esc, Android back) leaves our full screen too
+for (const ev of ["fullscreenchange", "webkitfullscreenchange"]) document.addEventListener(ev, () => { if (!document.fullscreenElement && !document.webkitFullscreenElement) setFullscreen(false); });
+window.addEventListener("resize", () => { if (isFs()) draw(); });
+let fsTouch = null;
+$(".fieldwrap").addEventListener("pointerdown", (e) => { if (isFs()) fsTouch = { x: e.clientX, y: e.clientY }; });
+$(".fieldwrap").addEventListener("pointerup", (e) => {
+  if (!isFs() || !fsTouch) return;
+  const dx = e.clientX - fsTouch.x, dy = e.clientY - fsTouch.y; fsTouch = null;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPlay(dx < 0 ? 1 : -1);
+  else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) $("#btn-play").click();
+});
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input,textarea,select")) return;
+  if (isFs() && e.key === "Escape") { setFullscreen(false); return; }
+  if (isFs() && (e.key === "PageDown" || e.key === "PageUp")) { stepPlay(e.key === "PageDown" ? 1 : -1); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && state.mode === "edit") { e.preventDefault(); undo(); return; }
   if (e.code === "Space") { e.preventDefault(); setPlaying(!state.playing); }
   if (e.key === "ArrowRight") setT(state.t + 0.1);
