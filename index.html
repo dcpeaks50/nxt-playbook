@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109171618">
+<meta name="nxt-build" content="20261109172408">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -704,7 +704,6 @@ function flagPlays() {
   const ids = (re) => allP.filter((p) => re.test(p.id)).map((p) => p.id);
   const packages = [
     { id: "pk_flag", name: "Flag 7v7", playIds: allP.map((p) => p.id) },
-    { id: "pk_motion", name: "Motion & shifts", playIds: ids(/jet|z7|2split|2bunch|ladder/) },
   ];
   return { formations: allF, plays: allP, packages };
 }
@@ -1404,6 +1403,11 @@ if (book.version < 37) {
     o.notes = "Same look as the jet. QB fakes it to A (dotted = fake) and throws Z the 2 (slant) right behind the defense chasing the jet. X runs a 9 to clear out the left side. Y and H block.";
   }
   book.version = 37;
+}
+// v38: the "Motion & shifts" package is gone (Mick, 2026-11-09).
+if (book.version < 38) {
+  book.packages = book.packages.filter((k) => k.id !== "pk_motion");
+  book.version = 38;
 }
 }
 const prefs = store.get(PREFS, {});
