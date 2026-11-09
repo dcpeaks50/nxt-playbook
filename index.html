@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109172408">
+<meta name="nxt-build" content="20261109173211">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -91,6 +91,13 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .empty{color:var(--muted);font-size:13px;padding:6px 2px}
 .order{display:flex;flex-direction:column}
 .order button{border:0;background:none;padding:0 4px;line-height:1;color:var(--muted);font-size:12px}
+.rm{border:0;background:none;color:var(--muted);font-size:15px;padding:4px 6px;border-radius:6px}
+.rm:hover{color:#ef4444;background:var(--panel2)}
+.pkpick h3{margin:12px 0 4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.pkpick h3:first-child{margin-top:0}
+.pkpick label{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;font-weight:700;cursor:pointer}
+.pkpick label:hover{background:var(--panel2)}
+.pkpick input{width:20px;height:20px;accent-color:var(--accent)}
 
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
 .formplays{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
@@ -202,7 +209,7 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
     <section class="panel">
       <h2>Type</h2>
       <div class="chips" id="types"></div>
-      <h2 style="margin-top:14px">Plays <button class="btn sm primary" id="btn-newplay">+ New play</button></h2>
+      <h2 style="margin-top:14px">Plays <span><button class="btn sm" id="btn-pkadd" hidden>+ Add plays</button> <button class="btn sm primary" id="btn-newplay">+ New play</button></span></h2>
       <div class="list" id="plays"></div>
     </section>
     <section class="panel">
@@ -257,6 +264,11 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
     <div class="details" id="details"></div>
   </main>
 </div>
+
+<dialog id="pkdlg">
+  <div class="dlg-h"><h2 id="pkdlg-t">Add plays</h2><button class="btn primary" id="pkdlg-done">Done</button></div>
+  <div class="dlg-b" id="pkdlg-b"></div>
+</dialog>
 
 <dialog id="printdlg">
   <div class="dlg-h"><h2>Print / Save as PDF</h2><button class="btn" id="print-close">Cancel</button></div>
@@ -1982,9 +1994,10 @@ function renderSidebar() {
   $("#plays").innerHTML = plays.length
     ? plays.map((p, i) => `<div class="item" aria-current="${state.playId === p.id}" data-p="${p.id}" role="button" tabindex="0">
         ${ordered ? `<span class="tag">${i + 1}</span>` : ""}<span class="name">${esc(playName(p))}${p.options?.length ? ` <span class="hint">· ${optNames(p).map(esc).join(" / ")}</span>` : ""}</span><span class="tag ${p.type}">${p.type}</span>
-        ${ordered ? `<span class="order"><button data-up="${p.id}" aria-label="Move up">▲</button><button data-down="${p.id}" aria-label="Move down">▼</button></span>` : ""}
+        ${ordered ? `<span class="order"><button data-up="${p.id}" aria-label="Move up">▲</button><button data-down="${p.id}" aria-label="Move down">▼</button></span><button class="rm" data-rm="${p.id}" title="Take out of this package (the play stays in your playbook)" aria-label="Remove from package">✕</button>` : ""}
       </div>`).join("")
-    : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
+    : ordered ? `<p class="empty">No plays in this package yet. Tap “+ Add plays” to pick from your playbook.</p>` : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
+  $("#btn-pkadd").hidden = !ordered || !book.packages.some((k) => k.id === state.pkg);
 }
 $("#fmt").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.format = b.dataset.v; state.formationId = null; state.formationOnly = false; state.playId = null; state.type = "all"; savePrefs(); refresh(); };
 $("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.side = b.dataset.v; state.formationId = null; state.formationOnly = false; state.type = "all"; savePrefs(); refresh(); };
@@ -2007,6 +2020,8 @@ $("#packages").onclick = (e) => {
 };
 $("#types").onclick = (e) => { const b = e.target.closest("[data-ty]"); if (!b) return; state.type = b.dataset.ty; refresh(); };
 $("#plays").onclick = (e) => {
+  const rm = e.target.closest("[data-rm]");
+  if (rm) { const pk = book.packages.find((k) => k.id === state.pkg); if (pk) { pk.playIds = pk.playIds.filter((id) => id !== rm.dataset.rm); save(); refresh(); } return; }
   const up = e.target.closest("[data-up]"), down = e.target.closest("[data-down]");
   if (up || down) {
     const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
@@ -2020,6 +2035,24 @@ $("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.cl
 // On a phone the list sits above the field: after picking something, bring the field into view.
 const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; const top = document.querySelector(".stage").getBoundingClientRect().top + scrollY - document.querySelector("header").offsetHeight - 8; scrollTo({ top, behavior: "smooth" }); };
 function openPlay(id) { setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
+// + Add plays: tick plays from the whole playbook (this format, offense/defense filter) into the selected package
+function renderPkPicker() {
+  const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
+  $("#pkdlg-t").textContent = `Plays in “${pk.name}”`;
+  const html = visibleFormations().map((f) => {
+    const plays = book.plays.filter((p) => p.formationId === f.id); if (!plays.length) return "";
+    return `<h3>${esc(f.name)}</h3>` + plays.map((p) => `<label><input type="checkbox" data-pick="${p.id}" ${pk.playIds.includes(p.id) ? "checked" : ""}> ${esc(playName(p))}</label>`).join("");
+  }).join("");
+  $("#pkdlg-b").innerHTML = `<div class="pkpick">${html || `<p class="empty">No plays yet.</p>`}</div><p class="hint">Ticked plays are in the package. New ones go at the end; use ▲▼ in the list to set the order.</p>`;
+}
+$("#btn-pkadd").onclick = () => { renderPkPicker(); $("#pkdlg").showModal(); };
+$("#pkdlg-done").onclick = () => $("#pkdlg").close();
+$("#pkdlg").addEventListener("close", () => refresh());
+$("#pkdlg-b").addEventListener("change", (e) => {
+  const id = e.target.dataset.pick, pk = book.packages.find((k) => k.id === state.pkg); if (!id || !pk) return;
+  pk.playIds = e.target.checked ? [...pk.playIds.filter((x) => x !== id), id] : pk.playIds.filter((x) => x !== id);
+  save(); renderSidebar();
+});
 $("#btn-newpkg").onclick = () => {
   const name = (prompt("Package name (e.g. “Red zone”, “vs Man”, “Opening script”)") || "").trim();
   if (!name) return;
