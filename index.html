@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109200916">
+<meta name="nxt-build" content="20261109201606">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -2475,7 +2475,7 @@ function rosterPositions(side) {
 }
 function renderRoster() {
   const offs = rosterPositions("O"), defs = rosterPositions("D");
-  const sel = (k, key, list, label) => `<select data-k="${key}" aria-label="${label} position"><option value="">${label}: —</option>${[...new Set([...list, ...(k[key] ? [k[key]] : [])])].map((p) => `<option value="${esc(p)}" ${k[key] === p ? "selected" : ""}>${label}: ${esc(p)}</option>`).join("")}</select>`;
+  const sel = (k, key, list, label) => `<select data-k="${key}" aria-label="${label} position"><option value="">${label === "Off" ? "Offense" : "Defense"}</option>${[...new Set([...list, ...(k[key] ? [k[key]] : [])])].map((p) => `<option value="${esc(p)}" ${k[key] === p ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`;
   $("#roster-rows").innerHTML = book.roster.map((k, i) => `${i === 0 ? `<div class="depth-h">Starters</div>` : i === STARTERS ? `<div class="depth-h">Bench</div>` : ""}<div class="roster-row" data-kid="${k.id}">
       <span class="ord"><button data-kup="${k.id}" aria-label="Move up">▲</button><button data-kdown="${k.id}" aria-label="Move down">▼</button></span>
       <input type="text" inputmode="numeric" placeholder="#" value="${esc(k.number)}" data-k="number"><input type="text" placeholder="Name" value="${esc(k.name)}" data-k="name"><button class="btn sm danger" data-delkid="${k.id}">Remove</button>
