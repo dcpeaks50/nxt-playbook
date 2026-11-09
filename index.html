@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109201606">
+<meta name="nxt-build" content="20261109201717">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -144,11 +144,12 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .dlg-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
 .dlg-h h2{margin:0;font-size:18px}
 .dlg-b{padding:14px 16px;max-height:65vh;overflow:auto}
-.roster-row{display:grid;grid-template-columns:30px 58px 1fr 1fr auto;grid-template-areas:"ord num name name del" "ord off off def def";gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.roster-row{display:grid;grid-template-columns:26px 48px minmax(0,1fr) 82px 34px;grid-template-areas:"ord num name pos del";align-items:center;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.roster-row [data-k="posO"],.roster-row [data-k="posD"]{grid-area:pos;min-width:0}
+.roster-row [data-delkid]{padding:6px 0}
 .roster-row .ord{grid-area:ord;display:flex;flex-direction:column;justify-content:center}
 .roster-row .ord button{border:0;background:none;color:var(--muted);font-size:13px;padding:2px}
 .roster-row [data-k="number"]{grid-area:num}.roster-row [data-k="name"]{grid-area:name}.roster-row [data-delkid]{grid-area:del}
-.roster-row [data-k="posO"]{grid-area:off}.roster-row [data-k="posD"]{grid-area:def}
 .depth-h{margin:12px 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
 .depth-h:first-child{margin-top:0}
 .swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -366,7 +367,8 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
 <dialog id="roster">
   <div class="dlg-h"><h2>Roster</h2><button class="btn" id="roster-close">Done</button></div>
   <div class="dlg-b">
-    <p class="hint" style="margin:0 0 10px">Give each player an offense and a defense position. The first 7 are your starters: every play puts them at their positions. Use ▲▼ to set the order. To use someone else in one formation, pick him under <b>Personnel</b> below the field.</p>
+    <div class="seg" id="roster-side" role="group" aria-label="Depth chart" style="display:flex;margin-bottom:10px"><button data-v="O" style="flex:1">Offense</button><button data-v="D" style="flex:1">Defense</button></div>
+    <p class="hint" style="margin:0 0 10px" id="roster-hint"></p>
     <div id="roster-rows"></div>
     <button class="btn primary" id="roster-add">+ Add player</button>
   </div>
@@ -1458,6 +1460,12 @@ if (book.version < 39) {
   }
   book.version = 39;
 }
+// v40: separate offense and defense depth charts, both starting in the roster order.
+if (book.version < 40) {
+  book.depth ||= {};
+  for (const sd of ["O", "D"]) book.depth[sd] ||= book.roster.map((k) => k.id);
+  book.version = 40;
+}
 }
 const prefs = store.get(PREFS, {});
 const state = {
@@ -1784,9 +1792,14 @@ function ghostFormation(f) {
 }
 /** Depth chart: the first 7 on the roster start. A spot goes to the first starter whose position matches, then the first bench player. */
 const STARTERS = 7;
+/** One side's depth chart in order (kids missing from it go at the end, in roster order). */
+function depthOrder(side) {
+  const ids = (book.depth?.[side] || []).filter((id) => book.roster.some((k) => k.id === id));
+  return [...ids, ...book.roster.map((k) => k.id).filter((id) => !ids.includes(id))].map((id) => book.roster.find((k) => k.id === id));
+}
 function depthKid(f, pos) {
-  const key = f.side === "D" ? "posD" : "posO";
-  return book.roster.find((k) => k[key] === pos) || null; // roster order is the depth chart
+  const side = f.side === "D" ? "D" : "O", key = side === "D" ? "posD" : "posO";
+  return depthOrder(side).find((k) => k[key] === pos) || null;
 }
 function kidFor(f, pos) {
   const id = f.lineup?.[pos];
@@ -2473,28 +2486,34 @@ function rosterPositions(side) {
   const seen = new Set(book.formations.filter((f) => f.format === state.format && f.side === side).flatMap((f) => f.spots.map((x) => x.pos)));
   return [...pref.filter((p) => seen.has(p)), ...[...seen].filter((p) => !pref.includes(p))];
 }
+let rosterSide = "O";
 function renderRoster() {
-  const offs = rosterPositions("O"), defs = rosterPositions("D");
-  const sel = (k, key, list, label) => `<select data-k="${key}" aria-label="${label} position"><option value="">${label === "Off" ? "Offense" : "Defense"}</option>${[...new Set([...list, ...(k[key] ? [k[key]] : [])])].map((p) => `<option value="${esc(p)}" ${k[key] === p ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`;
-  $("#roster-rows").innerHTML = book.roster.map((k, i) => `${i === 0 ? `<div class="depth-h">Starters</div>` : i === STARTERS ? `<div class="depth-h">Bench</div>` : ""}<div class="roster-row" data-kid="${k.id}">
+  const side = rosterSide, key = side === "D" ? "posD" : "posO", list = rosterPositions(side);
+  setSeg($("#roster-side"), side);
+  $("#roster-hint").innerHTML = `The first ${STARTERS} are your ${side === "D" ? "defensive" : "offensive"} starters: every ${side === "D" ? "defense" : "play"} puts them at their positions. Use ▲▼ to set the order. Names are shared with the ${side === "D" ? "Offense" : "Defense"} tab. To use someone else in one formation, pick him under <b>Personnel</b> below the field.`;
+  const sel = (k) => `<select data-k="${key}" aria-label="Position"><option value="">Pos</option>${[...new Set([...list, ...(k[key] ? [k[key]] : [])])].map((p) => `<option value="${esc(p)}" ${k[key] === p ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`;
+  $("#roster-rows").innerHTML = depthOrder(side).map((k, i) => `${i === 0 ? `<div class="depth-h">Starters</div>` : i === STARTERS ? `<div class="depth-h">Bench</div>` : ""}<div class="roster-row" data-kid="${k.id}">
       <span class="ord"><button data-kup="${k.id}" aria-label="Move up">▲</button><button data-kdown="${k.id}" aria-label="Move down">▼</button></span>
-      <input type="text" inputmode="numeric" placeholder="#" value="${esc(k.number)}" data-k="number"><input type="text" placeholder="Name" value="${esc(k.name)}" data-k="name"><button class="btn sm danger" data-delkid="${k.id}">Remove</button>
-      ${sel(k, "posO", offs, "Off")}${sel(k, "posD", defs, "Def")}</div>`).join("") || `<p class="empty">No players yet.</p>`;
+      <input type="text" inputmode="numeric" placeholder="#" value="${esc(k.number)}" data-k="number"><input type="text" placeholder="Name" value="${esc(k.name)}" data-k="name">${sel(k)}<button class="btn sm danger" data-delkid="${k.id}" aria-label="Remove ${esc(k.name || "player")}" title="Remove from the roster">✕</button></div>`).join("") || `<p class="empty">No players yet.</p>`;
 }
+$("#roster-side").onclick = (e) => { const b = e.target.closest("button"); if (b) { rosterSide = b.dataset.v; renderRoster(); } };
 $("#btn-roster").onclick = () => { renderRoster(); $("#roster").showModal(); };
 $("#roster-close").onclick = () => { $("#roster").close(); };
 $("#roster").addEventListener("close", () => { renderDetails(); draw(); });
-$("#roster-add").onclick = () => { book.roster.push({ id: "k_" + uid(), number: "", name: "" }); save(); renderRoster(); const ins = $("#roster-rows").querySelectorAll('input[data-k="name"]'); ins[ins.length - 1]?.focus(); };
+$("#roster-add").onclick = () => { const k = { id: "k_" + uid(), number: "", name: "" }; book.roster.push(k); book.depth ||= {}; for (const sd of ["O", "D"]) book.depth[sd] = [...depthOrder(sd).map((x) => x.id)]; save(); renderRoster(); const ins = $("#roster-rows").querySelectorAll('input[data-k="name"]'); ins[ins.length - 1]?.focus(); };
 $("#roster-rows").addEventListener("input", (e) => { const row = e.target.closest("[data-kid]"); const k = row && book.roster.find((x) => x.id === row.dataset.kid); if (k) { if (e.target.value) k[e.target.dataset.k] = e.target.value; else if (e.target.tagName === "SELECT") delete k[e.target.dataset.k]; else k[e.target.dataset.k] = ""; save(); } });
 $("#roster-rows").addEventListener("click", (e) => {
   const mv = e.target.closest("[data-kup],[data-kdown]");
   if (mv) {
-    const id = mv.dataset.kup || mv.dataset.kdown, i = book.roster.findIndex((k) => k.id === id), j = i + (mv.dataset.kup ? -1 : 1);
-    if (i < 0 || j < 0 || j >= book.roster.length) return;
-    [book.roster[i], book.roster[j]] = [book.roster[j], book.roster[i]]; save(); renderRoster(); return;
+    const ord = depthOrder(rosterSide).map((k) => k.id), id = mv.dataset.kup || mv.dataset.kdown, i = ord.indexOf(id), j = i + (mv.dataset.kup ? -1 : 1);
+    if (i < 0 || j < 0 || j >= ord.length) return;
+    [ord[i], ord[j]] = [ord[j], ord[i]]; (book.depth ||= {})[rosterSide] = ord; save(); renderRoster(); return;
   }
   const b = e.target.closest("[data-delkid]"); if (!b) return;
+  const gone = book.roster.find((k) => k.id === b.dataset.delkid);
+  if (!gone || !confirm(`Remove ${gone.name || "this player"} from the roster?`)) return;
   book.roster = book.roster.filter((k) => k.id !== b.dataset.delkid);
+  for (const sd of ["O", "D"]) if (book.depth?.[sd]) book.depth[sd] = book.depth[sd].filter((id) => id !== b.dataset.delkid);
   book.formations.forEach((f) => { for (const pos in f.lineup || {}) if (f.lineup[pos] === b.dataset.delkid) delete f.lineup[pos]; });
   save(); renderRoster();
 });
