@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261108180813">
+<meta name="nxt-build" content="20261109171618">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -29,6 +29,10 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .seg button{border:0;background:transparent;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .spacer{flex:1}
+.menu{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding-top:10px;border-top:1px solid var(--line)}
+.menu[hidden]{display:none}
+.menubtn[aria-expanded="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+@media (max-width:560px){header{gap:8px 10px;padding:8px 12px}.brand span{display:none}.viewsw button{padding:6px 10px}.mlabel{display:none}.menubtn{padding:6px 12px;font-size:18px;line-height:1}.sync{order:9;flex-basis:100%;text-align:right;margin-top:-4px}}
 .btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px}
 .btn:hover{border-color:var(--muted)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -166,15 +170,17 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
 <body>
 <header>
   <div class="brand"><b>NXT</b><span>Playbook</span></div>
-  <button class="btn primary" id="btn-practice" title="Practice schedule">Practice Schedule</button>
+  <div class="seg viewsw" id="view" role="group" aria-label="Show"><button data-v="plays" aria-pressed="true">Playbook</button><button data-v="practice">Practice Schedule</button></div>
+  <div class="spacer"></div>
+  <span class="sync" id="sync" title="Everyone with the link shares this playbook"></span>
+  <button class="btn menubtn" id="btn-menu" aria-expanded="false" aria-controls="menu" aria-label="Menu">☰<span class="mlabel"> Menu</span></button>
+  <div class="menu" id="menu" hidden>
   <div class="seg" id="fmt" role="group" aria-label="Format">
     <button data-v="5">5v5</button><button data-v="7">7v7</button><button data-v="11">11v11</button>
   </div>
   <div class="seg" id="side" role="group" aria-label="Side">
     <button data-v="all">All</button><button data-v="O">Offense</button><button data-v="D">Defense</button>
   </div>
-  <div class="spacer"></div>
-  <span class="sync" id="sync" title="Everyone with the link shares this playbook"></span>
   <button class="btn" id="btn-share" hidden>Share</button>
   <button class="btn" id="btn-print">Print / PDF</button>
   <button class="btn" id="btn-roster">Roster</button>
@@ -182,6 +188,7 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
   <button class="btn" id="btn-export">Export</button>
   <button class="btn" id="btn-import">Import</button>
   <input type="file" id="file" accept="application/json,.json" hidden>
+  </div>
 </header>
 
 <div class="updbar" id="updbar" hidden>A newer version of the playbook is ready. <button class="btn sm" id="btn-update">Update now</button></div>
@@ -2579,11 +2586,15 @@ function showPractice(on) {
   state.practice = on;
   $("#practice").hidden = !on; document.querySelector(".app").hidden = on;
   $("#fmt").hidden = $("#side").hidden = $("#btn-print").hidden = on;
-  $("#btn-practice").textContent = on ? "← Plays" : "Practice Schedule";
+  setSeg($("#view"), on ? "practice" : "plays");
   history.replaceState(null, "", on ? "#practice" : location.pathname + location.search);
   if (on) { setPlaying(false); renderPractice(); scrollTo(0, 0); }
 }
-$("#btn-practice").onclick = () => showPractice(!state.practice);
+$("#view").onclick = (e) => { const b = e.target.closest("button"); if (b) showPractice(b.dataset.v === "practice"); };
+// ☰ Menu: the playbook options (format, offense/defense, print, roster…) fold away; closed unless left open
+function setMenu(open) { $("#menu").hidden = !open; $("#btn-menu").setAttribute("aria-expanded", String(open)); store.set("nxt.menu", open); }
+$("#btn-menu").onclick = () => setMenu($("#menu").hidden);
+setMenu(store.get("nxt.menu", false));
 
 // ---------------------------------------------------------------- updates
 // Phones hang on to an old copy of the site; check for a newer one and offer a one-tap update.
