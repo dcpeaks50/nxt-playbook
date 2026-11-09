@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109201717">
+<meta name="nxt-build" content="20261109205215">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -161,6 +161,15 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .sync[data-tone="warn"]{color:#f59e0b}
 .hist-row{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 #printarea{display:none}
+.callbar{display:flex;flex-direction:column;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.callrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#call-in{flex:1;min-width:150px;font-size:20px;font-weight:900;letter-spacing:.04em;padding:8px 12px;border-radius:10px;text-transform:uppercase}
+.callmsg{margin:0;font-size:13px;color:var(--muted)}
+.callmsg b{color:var(--ink)}
+.callmsg .warn{color:#f59e0b;font-weight:700}
+.callhelp{font-size:13px;line-height:1.5;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.callhelp code{font-weight:900;background:var(--panel2);border-radius:5px;padding:0 5px}
+.callhelp ul{margin:4px 0 0;padding-left:18px}
 /* Full screen play: the stage covers the page; only the title, Right | Left, the field and the play controls stay */
 #btn-fsclose,.fsnav{display:none}
 body.fs{overflow:hidden}
@@ -253,10 +262,26 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
       <button class="btn" id="btn-ghost" aria-pressed="true">Opponent</button>
       <div class="seg" id="dir" role="group" aria-label="Direction" title="Run the play to the right or to the left"><button data-v="R" aria-pressed="true">Right</button><button data-v="L">Left</button></div>
       <button class="btn" id="btn-edit">Edit</button>
+      <button class="btn primary" id="btn-call" title="Call a pass play from a formation: 23, X9, Y pop…">📣 Call a play</button>
       <button class="btn" id="btn-fs" title="Show the play full screen. Turn the phone sideways to make it bigger.">⛶ Full screen</button>
       <button class="btn" id="btn-fsclose" aria-label="Close full screen">✕</button>
     </div>
     <div class="formplays" id="formplays" hidden></div>
+    <div class="callbar" id="callbar" hidden>
+      <div class="callrow">
+        <input id="call-in" type="text" placeholder="Call: 23, X9, Y pop…" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Play call">
+        <div class="seg" id="call-rest" role="group" aria-label="Everyone else runs"><button data-v="4">Rest 4s</button><button data-v="9">Rest 9s</button></div>
+      </div>
+      <div class="callrow">
+        <div class="chips" id="call-recent"></div>
+        <span class="spacer"></span>
+        <button class="btn sm" id="call-help-btn" aria-expanded="false">How to call</button>
+        <button class="btn sm primary" id="call-save">Save as play</button>
+        <button class="btn sm" id="call-close">Close</button>
+      </div>
+      <p class="callmsg" id="call-msg"></p>
+      <div class="callhelp" id="call-help" hidden></div>
+    </div>
     <div class="editbar" id="editbar" hidden>
       <div class="seg" id="editmode" role="group" aria-label="Edit">
         <button data-v="play">Routes</button><button data-v="formation">Formation</button>
@@ -1581,7 +1606,55 @@ window.addEventListener("online", () => { if (sync.ready && sync.offline) pushNo
 const savePrefs =() => store.set(PREFS, { format: state.format, side: state.side, labels: state.labels, ghost: state.ghost });
 
 const formationById = (id) => book.formations.find((f) => f.id === id);
-const rawPlay = () => book.plays.find((p) => p.id === state.playId) || null;
+const rawPlay = () => (state.call ? callPlay() : book.plays.find((p) => p.id === state.playId) || null);
+/* ---------------------------------------------------------------- play caller
+   Numbers go to the call-side receivers from the outside in ("23": Z runs a 2, H a 3 in Split).
+   "X9" or "X 9" gives one player a route; a word tag works the same ("Y pop" = Y runs a 9).
+   Everyone else runs the "rest" route (4 or 9). The QB and linemen don't run routes. Drawn to the right; Left mirrors it. */
+const CALL_TAGS = { pop: "9" };
+const NON_RECEIVERS = /^(QB|LT|LG|RG|RT|T|G|OL)$/i;
+const routeName = (n) => ROUTES.find((x) => x.n === String(n))?.name.toLowerCase();
+/** A route from the team route tree (ROUTES, same shapes the editor draws), for a spot. */
+function routeFor(num, spot) { const rt = ROUTES.find((x) => x.n === String(num)); return rt ? rt.pts(spot, spot.x < 0 ? 1 : spot.x > 0 ? -1 : 1) : null; }
+/** Read a call against a formation: { routes: {pos: num}, order: [pos…], problems: [text…] } */
+function readCall(f, text, rest) {
+  const recv = f.spots.filter((p) => !NON_RECEIVERS.test(p.pos));
+  const callSide = recv.filter((p) => p.x > 0.5).sort((a, b) => b.x - a.x);
+  const byPos = Object.fromEntries(recv.map((p) => [p.pos.toUpperCase(), p.pos]));
+  const routes = {}, order = [], problems = [];
+  const give = (pos, num) => { if (!routeName(num)) { problems.push(`${num} isn't in the route tree (${ROUTES.map((x) => x.n).join(", ")})`); return; } routes[pos] = num; if (!order.includes(pos)) order.push(pos); };
+  const tags = { ...CALL_TAGS, ...(book.callTags || {}) };
+  const toks = String(text || "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(Boolean)
+    .filter((t) => !["RIGHT", "LEFT", "RT", "LT"].includes(t) && t !== f.name.toUpperCase().replace(/\s*(RIGHT|LEFT)$/, ""));
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (/^\d+$/.test(t)) { [...t].forEach((d, j) => (callSide[j] ? give(callSide[j].pos, d) : problems.push(`no ${j + 1}${["st", "nd", "rd"][j] || "th"} receiver on the call side for the ${d}`))); continue; }
+    const m = /^([A-Z]{1,3}?)(\d)$/.exec(t);
+    if (m && byPos[m[1]]) { give(byPos[m[1]], m[2]); continue; }
+    if (byPos[t] && toks[i + 1] != null) {
+      const nx = toks[i + 1].toLowerCase(), num = /^\d$/.test(nx) ? nx : tags[nx];
+      if (num) { give(byPos[t], num); i++; continue; }
+    }
+    problems.push(`didn't understand “${t}”`);
+  }
+  for (const p of recv) if (!(p.pos in routes)) routes[p.pos] = String(rest);
+  return { routes, order, problems, callSide: callSide.map((p) => p.pos) };
+}
+/** The play a call draws (not saved unless you tap Save as play). */
+function callPlay() {
+  const f = formationById(state.call.formationId); if (!f) return null;
+  const { routes, order } = readCall(f, state.call.text, state.call.rest);
+  const paths = {};
+  for (const sp of f.spots) {
+    if (sp.pos === "QB") { paths.QB = { pts: [[sp.x, sp.y - 1.5]], speed: 3 }; continue; }
+    const pts = routes[sp.pos] && routeFor(routes[sp.pos], sp);
+    if (pts) paths[sp.pos] = { pts, end: "arrow" };
+  }
+  const star = order[0];
+  if (star && paths[star]) paths[star].star = true;
+  const base = f.name.replace(/\s*\b(Right|Left)\b/g, "").trim();
+  return { id: "__call", name: `${base} ${(state.call.text || "").trim().toUpperCase() || "Call"}`.trim(), formationId: f.id, type: "pass", paths, events: star ? [{ t: 1.5, kind: "pass", to: star }] : [], notes: "" };
+}
 // Options: one play, same look, different endings (Reverse | Fake). play.options = [{ name, paths, events, notes, left? }];
 // play.optName names the first one (the play itself). The open option reads and edits as if it were the play.
 const OPT_KEYS = ["paths", "events", "notes", "left"];
@@ -1982,6 +2055,77 @@ $("#formplays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!
 $("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
 $("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
 $("#scrub").oninput = (e) => { setPlaying(false); setT((+e.target.value / 1000) * playDuration(viewPlay(), viewFormation())); };
+// ---------------------------------------------------------------- play caller UI
+const RECENT_CALLS = "nxt.calls";
+function callerFormation() {
+  const cur = currentFormation();
+  if (cur && cur.side === "O" && visibleFormations().includes(cur)) return cur;
+  return visibleFormations().find((f) => f.side === "O") || null;
+}
+function openCaller() {
+  const f = callerFormation(); if (!f) { alert("Pick an offense formation first."); return; }
+  if (state.mode === "edit") $("#btn-done").click();
+  setPlaying(false);
+  state.call = { formationId: f.id, text: "", rest: store.get("nxt.callrest", "4") };
+  state.formationId = f.id; state.t = 0;
+  $("#call-in").value = ""; renderCaller(); refresh();
+  $("#call-in").focus();
+}
+function closeCaller(doRefresh = true) {
+  if (!state.call) return;
+  state.call = null; $("#callbar").hidden = true; $("#call-help").hidden = true;
+  if (doRefresh) refresh();
+}
+function rememberCall(text) {
+  text = text.trim().toUpperCase(); if (!text) return;
+  store.set(RECENT_CALLS, [text, ...store.get(RECENT_CALLS, []).filter((x) => x !== text)].slice(0, 10));
+}
+function renderCaller() {
+  const on = !!state.call;
+  $("#callbar").hidden = !on; $("#btn-call").hidden = on;
+  if (!on) return;
+  setSeg($("#call-rest"), String(state.call.rest));
+  const recent = store.get(RECENT_CALLS, []);
+  $("#call-recent").innerHTML = (recent.length ? recent : ["23", "X9", "Y POP", "Z8 H3"]).map((c) => `<button class="chip" data-call="${esc(c)}">${esc(c)}</button>`).join("");
+  const f = formationById(state.call.formationId);
+  if (!f) { $("#call-msg").innerHTML = ""; return; }
+  const r = readCall(f, state.call.text, state.call.rest);
+  const named = r.order.map((p) => `<b>${esc(p)}</b> ${r.routes[p]} (${routeName(r.routes[p])})`).join(", ");
+  $("#call-msg").innerHTML = (named ? named + ` · everyone else ${state.call.rest}s` : `Call side, outside in: <b>${r.callSide.map(esc).join(", ") || "nobody"}</b>. Everyone else ${state.call.rest}s.`) +
+    (r.problems.length ? ` <span class="warn">· ${r.problems.map(esc).join("; ")}</span>` : "");
+}
+function renderCallDetails() {
+  const f = formationById(state.call.formationId); if (!f) { $("#details").innerHTML = ""; return; }
+  const r = readCall(f, state.call.text, state.call.rest);
+  const rows = f.spots.filter((p) => r.routes[p.pos]).map((p) => `<li><b>${esc(p.pos)}</b>${kidFor(f, p.pos) ? ` (${esc(kidFor(f, p.pos).name)})` : ""}: ${r.routes[p.pos]} · ${routeName(r.routes[p.pos]) || "?"}${r.order.includes(p.pos) ? "" : ` <span class="hint">(rest)</span>`}</li>`).join("");
+  $("#details").innerHTML = `<div class="box"><h3>The call · ${esc(playName(callPlay()))}</h3><ul class="events" style="list-style:none">${rows}</ul><p class="hint">The QB reads it; the star is the first receiver you called. Pick another formation in the list to call it from there.</p></div>`;
+}
+function setCallText(text) { state.call.text = text; $("#call-in").value = text; setPlaying(false); state.t = 0; renderCaller(); refresh(); }
+$("#btn-call").onclick = openCaller;
+$("#call-close").onclick = () => closeCaller();
+$("#call-in").addEventListener("input", (e) => { state.call.text = e.target.value; setPlaying(false); state.t = 0; renderCaller(); renderTitle(); renderDetails(); setT(0); });
+$("#call-in").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rememberCall(state.call.text); renderCaller(); e.target.blur(); setPlaying(true); } if (e.key === "Escape") closeCaller(); });
+$("#call-in").addEventListener("change", () => { rememberCall(state.call?.text || ""); renderCaller(); });
+$("#call-rest").onclick = (e) => { const b = e.target.closest("button"); if (!b || !state.call) return; state.call.rest = b.dataset.v; store.set("nxt.callrest", b.dataset.v); setPlaying(false); state.t = 0; renderCaller(); refresh(); };
+$("#call-recent").onclick = (e) => { const b = e.target.closest("[data-call]"); if (b) { setCallText(b.dataset.call); rememberCall(b.dataset.call); renderCaller(); } };
+$("#call-help-btn").onclick = () => {
+  const h = $("#call-help"), open = h.hidden; h.hidden = !open; $("#call-help-btn").setAttribute("aria-expanded", String(open));
+  if (open) h.innerHTML = `<b>How to call it</b><ul>
+    <li><code>23</code> numbers go to the call side, outside in. In Split Right that's Z then H: Z runs a 2, H a 3.</li>
+    <li><code>X9</code> one player, one route. <code>Z8 H3</code> two of them.</li>
+    <li><code>Y POP</code> a word works too (POP = 9).</li>
+    <li>Everyone you don't call runs the <b>Rest</b> route: 4s or 9s.</li>
+    <li>Routes: ${ROUTES.map((r) => `<code>${r.n}</code> ${r.name.toLowerCase()}`).join(", ")}.</li>
+    <li><b>Right | Left</b> flips the call side. Pick a formation in the list to call from it.</li></ul>`;
+};
+$("#call-save").onclick = () => {
+  const p = callPlay(); if (!p || !state.call.text.trim()) { alert("Type a call first."); return; }
+  const np = { ...structuredClone(p), id: "p_" + uid(), notes: `Call: ${state.call.text.trim().toUpperCase()}. Everyone else runs ${state.call.rest}s.` };
+  book.plays.push(np);
+  if (state.pkg !== "all") book.packages.find((k) => k.id === state.pkg)?.playIds.push(np.id);
+  rememberCall(state.call.text); save(); closeCaller(false); openPlay(np.id);
+};
+
 // ---------------------------------------------------------------- full screen (for showing the kids)
 // Tap the field to play / pause, swipe left or right for the next / previous play. Turn the phone sideways to make it bigger.
 const isFs = () => document.body.classList.contains("fs");
@@ -2085,6 +2229,7 @@ $("#labels").onclick = (e) => { const b = e.target.closest("button"); if (!b) re
 $("#btn-ghost").onclick = () => { state.ghost = !state.ghost; savePrefs(); renderSidebar(); draw(); };
 $("#formations").onclick = (e) => {
   const b = e.target.closest("[data-f]"); if (!b) return;
+  if (state.call) { const f = formationById(b.dataset.f); if (f && f.side === "O") { state.call.formationId = f.id; state.formationId = f.id; setPlaying(false); state.t = 0; foldAfterPick("forms"); refresh(); toStage(); } return; }
   state.formationId = b.dataset.f || null;
   // A formation on its own: just the players lined up (no routes). Pick a play from the list to see it.
   setPlaying(false); state.selPos = null; state.t = 0;
@@ -2114,7 +2259,7 @@ $("#plays").onclick = (e) => {
 $("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
 // On a phone the list sits above the field: after picking something, bring the field into view.
 const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; const top = document.querySelector(".stage").getBoundingClientRect().top + scrollY - document.querySelector("header").offsetHeight - 8; scrollTo({ top, behavior: "smooth" }); };
-function openPlay(id) { setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
+function openPlay(id) { if (state.call) closeCaller(false); setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
 // + Add plays: tick plays from the whole playbook (this format, offense/defense filter) into the selected package
 function renderPkPicker() {
   const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
@@ -2249,6 +2394,8 @@ $("#title-in").oninput = (e) => { const p = currentPlay(); if (p) { p.name = e.t
 
 function renderTitle() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
+  $("#btn-call").hidden = !!state.call || editing || !visibleFormations().some((x) => x.side === "O");
+  $("#btn-edit").hidden = !!state.call;
   $("#title").hidden = editing && !!p; $("#title-in").hidden = !(editing && p);
   $("#title").textContent = p ? playName(p, state.flip, optNames(rawPlay())[Math.min(state.opt || 0, rawPlay().options?.length || 0)] || "") : f ? formName(f) : "Pick a play";
   setSeg($("#dir"), state.flip ? "L" : "R");
@@ -2275,6 +2422,7 @@ function renderTitle() {
     : state.selPos ? `${state.selPos} picked. Drag on the field to draw his line (it continues from the arrow). Drag any player to move him. Drag a ring to bend the line; tap a ring or the arrow tip to delete from there.` : "Drag a player to move him (this play only). Tap a player to pick him, then drag on the field to draw his route or block.";
 }
 function renderDetails() {
+  if (state.call) { renderCallDetails(); return; }
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
   if (!f) { $("#details").innerHTML = `<div class="box"><h3>Get started</h3><p class="hint">Pick 5v5, 7v7 or 11v11 at the top, then a formation and a play. Hit ▶ to run it, ½× to slow it down, or drag the bar to step through it.</p></div>`; return; }
   let h = "";
