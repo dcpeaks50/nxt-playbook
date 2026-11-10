@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109211409">
+<meta name="nxt-build" content="20261110093119">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -95,6 +95,7 @@ body.menus .panel.closed .secact{display:none}
 .item:hover{border-color:var(--muted)}
 .item[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .item .name{flex:1;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#plays .item[data-i] .name{white-space:normal;line-height:1.25}
 .tag{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--line);color:var(--ink)}
 .tag.O{background:#1d4ed8;color:#fff}.tag.D{background:#b91c1c;color:#fff}
 .tag.run{background:#c2410c;color:#fff}.tag.pass{background:#0e7490;color:#fff}
@@ -112,6 +113,7 @@ body.menus .panel.closed .secact{display:none}
 .pkpick h3:first-child{margin-top:0}
 .pkpick label{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;font-weight:700;cursor:pointer}
 .pkpick label:hover{background:var(--panel2)}
+.pkpick label.sub{padding:5px 6px 5px 36px;font-weight:600;font-size:14px}
 .pkpick input{width:20px;height:20px;accent-color:var(--accent)}
 
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
@@ -1586,9 +1588,9 @@ function offerLocal(local, mine) {
     const fids = new Set(mine.map((p) => p.formationId));
     for (const f of local.formations) if (fids.has(f.id) && !book.formations.some((x) => x.id === f.id)) book.formations.push(f);
     for (const k of local.packages || []) {
-      const ids = k.playIds.filter((id) => mine.some((p) => p.id === id)), sk = book.packages.find((x) => x.id === k.id);
+      const ids = k.playIds.filter((id) => mine.some((p) => p.id === refId(id))), sk = book.packages.find((x) => x.id === k.id);
       if (sk) { for (const id of ids) if (!sk.playIds.includes(id)) sk.playIds.push(id); }
-      else if (ids.length) book.packages.push({ ...k, playIds: k.playIds.filter((id) => book.plays.some((p) => p.id === id)) });
+      else if (ids.length) book.packages.push({ ...k, playIds: k.playIds.filter((id) => book.plays.some((p) => p.id === refId(id))) });
     }
     if (!book.roster?.length && local.roster?.length) book.roster = local.roster;
     $("#localdlg").close(); save(); refresh();
@@ -1666,6 +1668,10 @@ function callPlay() {
 // play.optName names the first one (the play itself). The open option reads and edits as if it were the play.
 const OPT_KEYS = ["paths", "events", "notes", "left"];
 const optNames = (p) => (p?.options?.length ? [p.optName || "Base", ...p.options.map((o) => o.name)] : []);
+// Package entries: "id" (the play, all its options), or "id@N" / "id@N@L" for one option (0 = the play itself), Right or Left.
+const pkRef = (r) => { const m = /^([^@]+)(?:@(\d+))?(@L)?$/.exec(String(r)) || [, String(r)]; return { id: m[1], opt: +(m[2] || 0), flip: !!m[3], whole: !m[2] && !m[3] }; };
+const refId = (r) => String(r).split("@")[0];
+const makeRef = (id, opt, flip) => (opt || flip ? `${id}@${opt || 0}${flip ? "@L" : ""}` : id);
 function withOption(p, i) {
   const o = i > 0 && p?.options?.[i - 1]; if (!o) return p;
   const mine = (k) => OPT_KEYS.includes(k);
@@ -2156,6 +2162,11 @@ function setFullscreen(on) {
   draw();
 }
 function stepPlay(d) {
+  if (state.pkg !== "all") {
+    const list = pkgEntries(); let i = list.findIndex((e) => e.i === state.pkgI);
+    if (i < 0) i = list.findIndex((e) => e.id === state.playId);
+    const next = list[i + d]; if (next) openEntry(next); return;
+  }
   const list = visiblePlays(), i = list.findIndex((p) => p.id === state.playId), next = list[i + d];
   if (next) openPlay(next.id);
 }
@@ -2188,15 +2199,26 @@ document.addEventListener("keydown", (e) => {
 // ---------------------------------------------------------------- sidebar
 function setSeg(el, v) { el.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
 function visibleFormations() { return book.formations.filter((f) => f.format === state.format && (state.side === "all" || f.side === state.side)); }
-function visiblePlays() {
+function filteredPlays() {
   const fids = new Set(visibleFormations().map((f) => f.id));
-  let list = book.plays.filter((p) => fids.has(p.formationId) && (!state.formationId || p.formationId === state.formationId) && (state.type === "all" || p.type === state.type));
-  if (state.pkg !== "all") {
-    const pk = book.packages.find((k) => k.id === state.pkg);
-    const order = pk ? pk.playIds : [];
-    list = list.filter((p) => order.includes(p.id)).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-  }
-  return list;
+  return book.plays.filter((p) => fids.has(p.formationId) && (!state.formationId || p.formationId === state.formationId) && (state.type === "all" || p.type === state.type));
+}
+/** The selected package, in order: one entry per line (the same play can be in it twice, as different options). */
+function pkgEntries() {
+  const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return [];
+  const ok = new Map(filteredPlays().map((p) => [p.id, p]));
+  return pk.playIds.map((r, i) => ({ ...pkRef(r), i, ref: r })).map((e) => ({ ...e, p: ok.get(e.id) }))
+    .filter((e) => e.p && e.opt <= (e.p.options?.length || 0));
+}
+const entryName = (e) => playName(e.p, e.whole ? state.flip : e.flip, e.whole ? "" : optNames(e.p)[e.opt] || "");
+function openEntry(e) {
+  openPlay(e.id);
+  if (!e.whole && !e.p.call) { state.opt = e.opt; state.flip = e.flip; }
+  state.pkgI = e.i; refresh();
+}
+function visiblePlays() {
+  if (state.pkg === "all") return filteredPlays();
+  const seen = new Set(); return pkgEntries().map((e) => e.p).filter((p) => !seen.has(p.id) && seen.add(p.id));
 }
 function renderSidebar() {
   setSeg($("#fmt"), state.format); setSeg($("#side"), state.side); setSeg($("#labels"), state.labels);
@@ -2212,12 +2234,17 @@ function renderSidebar() {
   $("#types").innerHTML = ["all", ...types].map((t) => `<button class="chip" data-ty="${t}" aria-pressed="${state.type === t}">${t === "all" ? "All" : t[0].toUpperCase() + t.slice(1)}</button>`).join("");
   const plays = visiblePlays();
   const ordered = state.pkg !== "all";
-  $("#plays").innerHTML = plays.length
-    ? plays.map((p, i) => `<div class="item" aria-current="${state.playId === p.id}" data-p="${p.id}" role="button" tabindex="0">
-        ${ordered ? `<span class="tag">${i + 1}</span>` : ""}<span class="name">${esc(playName(p))}${p.options?.length ? ` <span class="hint">· ${optNames(p).map(esc).join(" / ")}</span>` : ""}</span><span class="tag ${p.type}">${p.type}</span>
-        ${ordered ? `<span class="order"><button data-up="${p.id}" aria-label="Move up">▲</button><button data-down="${p.id}" aria-label="Move down">▼</button></span><button class="rm" data-rm="${p.id}" title="Take out of this package (the play stays in your playbook)" aria-label="Remove from package">✕</button>` : ""}
+  const isCur = (e) => state.playId === e.id && (state.pkgI != null ? state.pkgI === e.i : e.whole ? !(state.opt || 0) : e.opt === (state.opt || 0) && e.flip === !!state.flip);
+  const hint = (p) => (p.options?.length ? ` <span class="hint">· ${optNames(p).map(esc).join(" / ")}</span>` : "");
+  $("#plays").innerHTML = ordered
+    ? pkgEntries().map((e, n) => `<div class="item" aria-current="${isCur(e)}" data-p="${e.id}" data-i="${e.i}" role="button" tabindex="0">
+        <span class="tag">${n + 1}</span><span class="name">${esc(entryName(e))}${e.whole ? hint(e.p) : ""}</span><span class="tag ${e.p.type}">${e.p.type}</span>
+        <span class="order"><button data-up="${e.i}" aria-label="Move up">▲</button><button data-down="${e.i}" aria-label="Move down">▼</button></span><button class="rm" data-rm="${e.i}" title="Take out of this package (the play stays in your playbook)" aria-label="Remove from package">✕</button>
+      </div>`).join("") || `<p class="empty">No plays in this package yet. Tap “+ Add plays” to pick from your playbook.</p>`
+    : plays.length ? plays.map((p) => `<div class="item" aria-current="${state.playId === p.id}" data-p="${p.id}" role="button" tabindex="0">
+        <span class="name">${esc(playName(p))}${hint(p)}</span><span class="tag ${p.type}">${p.type}</span>
       </div>`).join("")
-    : ordered ? `<p class="empty">No plays in this package yet. Tap “+ Add plays” to pick from your playbook.</p>` : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
+    : `<p class="empty">No plays match. Try “All”, or add a new play.</p>`;
   $("#btn-pkadd").hidden = !ordered || !book.packages.some((k) => k.id === state.pkg);
   const f = state.formationId && book.formations.find((x) => x.id === state.formationId), pk = book.packages.find((k) => k.id === state.pkg), cur = currentPlay();
   const sum = { forms: f ? formName(f) : "All", plays: cur ? playName(cur) : `${plays.length} plays`, pkgs: pk ? pk.name : "All" };
@@ -2264,17 +2291,22 @@ $("#packages").onclick = (e) => {
 $("#types").onclick = (e) => { const b = e.target.closest("[data-ty]"); if (!b) return; state.type = b.dataset.ty; refresh(); };
 $("#plays").onclick = (e) => {
   const rm = e.target.closest("[data-rm]");
-  if (rm) { const pk = book.packages.find((k) => k.id === state.pkg); if (pk) { pk.playIds = pk.playIds.filter((id) => id !== rm.dataset.rm); save(); refresh(); } return; }
+  if (rm) { const pk = book.packages.find((k) => k.id === state.pkg); if (pk) { pk.playIds.splice(+rm.dataset.rm, 1); state.pkgI = null; save(); refresh(); } return; }
   const up = e.target.closest("[data-up]"), down = e.target.closest("[data-down]");
   if (up || down) {
     const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
-    const id = (up || down).dataset.up || (up || down).dataset.down, i = pk.playIds.indexOf(id), j = i + (up ? -1 : 1);
-    if (i < 0 || j < 0 || j >= pk.playIds.length) return;
-    [pk.playIds[i], pk.playIds[j]] = [pk.playIds[j], pk.playIds[i]]; save(); renderSidebar(); return;
+    const list = pkgEntries(), k = list.findIndex((x) => x.i === +((up || down).dataset.up ?? (up || down).dataset.down)), o = list[k + (up ? -1 : 1)];
+    if (k < 0 || !o) return;
+    const i = list[k].i, j = o.i; [pk.playIds[i], pk.playIds[j]] = [pk.playIds[j], pk.playIds[i]];
+    if (state.pkgI === i) state.pkgI = j; else if (state.pkgI === j) state.pkgI = i;
+    save(); renderSidebar(); return;
   }
-  const it = e.target.closest("[data-p]"); if (!it) return; foldAfterPick("plays"); openPlay(it.dataset.p); toStage();
+  const it = e.target.closest("[data-p]"); if (!it) return; foldAfterPick("plays");
+  const en = it.dataset.i != null && pkgEntries().find((x) => x.i === +it.dataset.i);
+  if (en) openEntry(en); else openPlay(it.dataset.p);
+  toStage();
 };
-$("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
+$("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) it.click(); } };
 // On a phone the list sits above the field: after picking something, bring the field into view.
 const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; const top = document.querySelector(".stage").getBoundingClientRect().top + scrollY - document.querySelector("header").offsetHeight - 8; scrollTo({ top, behavior: "smooth" }); };
 // A "call" play (play.call = "27 X9") opens the play caller on its formation with that call filled in: change the numbers to change the routes.
@@ -2284,16 +2316,17 @@ function openCallPlay(p) {
   state.call = { formationId: p.formationId, text: p.call, rest: p.callRest || store.get("nxt.callrest", "4") };
   state.formationId = p.formationId; $("#call-in").value = p.call; renderCaller(); refresh();
 }
-function openPlay(id) { const cp = book.plays.find((q) => q.id === id); if (cp?.call) { openCallPlay(cp); return; } if (state.call) closeCaller(false); setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
+function openPlay(id) { state.pkgI = null; const cp = book.plays.find((q) => q.id === id); if (cp?.call) { openCallPlay(cp); return; } if (state.call) closeCaller(false); setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
 // + Add plays: tick plays from the whole playbook (this format, offense/defense filter) into the selected package
 function renderPkPicker() {
   const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
   $("#pkdlg-t").textContent = `Plays in “${pk.name}”`;
   const html = visibleFormations().map((f) => {
     const plays = book.plays.filter((p) => p.formationId === f.id); if (!plays.length) return "";
-    return `<h3>${esc(f.name)}</h3>` + plays.map((p) => `<label><input type="checkbox" data-pick="${p.id}" ${pk.playIds.includes(p.id) ? "checked" : ""}> ${esc(playName(p))}</label>`).join("");
+    return `<h3>${esc(f.name)}</h3>` + plays.map((p) => `<label><input type="checkbox" data-pick="${p.id}" ${pk.playIds.includes(p.id) ? "checked" : ""}> ${esc(playName(p))}</label>` +
+      optNames(p).map((n, j) => j === 0 ? "" : (() => { const r = makeRef(p.id, j, false); return `<label class="sub"><input type="checkbox" data-pick="${r}" ${pk.playIds.includes(r) ? "checked" : ""}> ${esc(playName(p, false, n))}</label>`; })()).join("")).join("");
   }).join("");
-  $("#pkdlg-b").innerHTML = `<div class="pkpick">${html || `<p class="empty">No plays yet.</p>`}</div><p class="hint">Ticked plays are in the package. New ones go at the end; use ▲▼ in the list to set the order.</p>`;
+  $("#pkdlg-b").innerHTML = `<div class="pkpick">${html || `<p class="empty">No plays yet.</p>`}</div><p class="hint">Ticked plays are in the package. Tick an option (like Sweep Reverse) to put just that one in, and tick more than one to run them back to back. New ones go at the end; use ▲▼ in the list to set the order. For a Left version, open the play, switch to Left and tick the package under the field.</p>`;
 }
 $("#btn-pkadd").onclick = () => { renderPkPicker(); $("#pkdlg").showModal(); };
 $("#pkdlg-done").onclick = () => $("#pkdlg").close();
@@ -2393,11 +2426,12 @@ $("#btn-delopt").onclick = () => {
   const p = rawPlay(), i = state.opt || 0; if (!p?.options?.length || i === 0) return;
   if (!confirm(`Delete the “${p.options[i - 1].name}” option?`)) return;
   p.options.splice(i - 1, 1); if (!p.options.length) { delete p.options; delete p.optName; }
+  for (const k of book.packages) k.playIds = k.playIds.flatMap((r) => { const e = pkRef(r); if (e.id !== p.id || e.whole) return [r]; if (e.opt === i) return []; return [e.opt > i ? makeRef(p.id, e.opt - 1, e.flip) : r]; });
   state.opt = 0; save(); refresh();
 };
 $("#btn-delplay").onclick = () => {
   const p = rawPlay(); if (!p || !confirm(`Delete “${p.name}”?`)) return;
-  book.plays = book.plays.filter((x) => x !== p); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => id !== p.id)));
+  book.plays = book.plays.filter((x) => x !== p); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => refId(id) !== p.id)));
   save(); state.playId = null; state.mode = "view"; refresh();
 };
 $("#btn-renform").onclick = () => {
@@ -2411,12 +2445,14 @@ $("#btn-delform").onclick = () => {
   const n = book.plays.filter((p) => p.formationId === f.id).length;
   if (!confirm(`Delete the “${f.name}” formation${n ? ` and its ${n} play${n > 1 ? "s" : ""}` : ""}?`)) return;
   const gone = new Set(book.plays.filter((p) => p.formationId === f.id).map((p) => p.id));
-  book.plays = book.plays.filter((p) => !gone.has(p.id)); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => !gone.has(id))));
+  book.plays = book.plays.filter((p) => !gone.has(p.id)); book.packages.forEach((k) => (k.playIds = k.playIds.filter((id) => !gone.has(refId(id)))));
   book.formations = book.formations.filter((x) => x !== f);
   save(); state.formationId = null; state.playId = null; state.mode = "view"; refresh();
 };
 $("#title-in").oninput = (e) => { const p = currentPlay(); if (p) { p.name = e.target.value; save(); renderSidebar(); } };
 
+/** What's on screen as a package entry: the play, or this option / this side of it. */
+const curRef = () => { const p = rawPlay(); return p ? makeRef(p.id, p.options?.length ? state.opt || 0 : 0, !!state.flip) : ""; };
 function renderTitle() {
   const p = currentPlay(), f = currentFormation(), editing = state.mode === "edit";
   $("#btn-call").hidden = !!state.call || editing || !visibleFormations().some((x) => x.side === "O");
@@ -2453,7 +2489,8 @@ function renderDetails() {
   let h = "";
   if (p) {
     h += `<div class="box"><h3>Coaching notes</h3>${editing ? `<textarea id="notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea>` : `<p style="margin:0">${esc(state.flip && p.left ? (p.left.notes ?? p.notes) : dirText(p.notes)) || '<span class="hint">No notes yet. Tap Edit to add some.</span>'}</p>`}</div>`;
-    h += `<div class="box"><h3>Packages</h3>${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(p.id) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
+    const ref = curRef();
+    h += `<div class="box"><h3>Packages</h3>${ref !== rawPlay().id ? `<p class="hint" style="margin:0 0 4px">Puts in just <b>${esc(playName(rawPlay(), state.flip, optNames(rawPlay())[state.opt || 0] || ""))}</b></p>` : ""}${book.packages.length ? book.packages.map((k) => `<label class="row" style="margin:3px 0"><input type="checkbox" data-inpk="${k.id}" ${k.playIds.includes(ref) ? "checked" : ""}> ${esc(k.name)}</label>`).join("") : `<p class="hint">No packages yet.</p>`}
       ${editing ? `<div class="row"><label>Type</label><select id="ptype">${TYPES[f.side].map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
       ${f.side === "O" ? `<div class="row"><label>Snap to</label><select id="psnapto">${f.spots.filter((x) => x.pos !== "C").map((x) => `<option ${(p.snapTo || "QB") === x.pos ? "selected" : ""}>${x.pos}</option>`).join("")}</select></div>` : ""}
       <div class="row"><label>End zone</label><select id="pgoal">${[["", "None"], ["5", "5 yds away"], ["10", "10 yds away"], ["14", "14 yds away"], ["20", "20 yds away"]].map(([v, l]) => `<option value="${v}" ${String(p.goal || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}</div>`;
@@ -2499,7 +2536,7 @@ $("#details").addEventListener("input", (e) => {
 $("#details").addEventListener("change", (e) => {
   const p = currentPlay(), f = currentFormation();
   const pk = e.target.dataset.inpk;
-  if (pk && p) { const k = book.packages.find((x) => x.id === pk); if (k) { k.playIds = e.target.checked ? [...k.playIds, p.id] : k.playIds.filter((id) => id !== p.id); save(); renderSidebar(); } }
+  if (pk && p) { const k = book.packages.find((x) => x.id === pk), ref = curRef(); if (k) { k.playIds = e.target.checked ? [...k.playIds, ref] : k.playIds.filter((id) => id !== ref); save(); renderSidebar(); } }
   if (e.target.id === "ptype" && p) { p.type = e.target.value; save(); renderSidebar(); renderTitle(); }
   if (e.target.id === "psnapto" && p) { if (e.target.value === "QB") delete p.snapTo; else p.snapTo = e.target.value; save(); setT(state.t); }
   if (e.target.id === "pgoal" && p) { if (e.target.value) p.goal = +e.target.value; else delete p.goal; save(); draw(); }
@@ -2958,7 +2995,7 @@ function sharePayload(what, withRoster) {
   const plays = what === "one" ? [currentPlay()].filter(Boolean) : what === "list" ? visiblePlays() : book.plays;
   const ids = new Set(plays.map((p) => p.id)), fids = new Set(plays.map((p) => p.formationId));
   const formations = book.formations.filter((f) => what === "all" || fids.has(f.id)).map((f) => (withRoster ? f : { ...f, lineup: {} }));
-  const packages = book.packages.map((k) => ({ ...k, playIds: k.playIds.filter((id) => ids.has(id)) })).filter((k) => k.playIds.length || what === "all");
+  const packages = book.packages.map((k) => ({ ...k, playIds: k.playIds.filter((id) => ids.has(refId(id))) })).filter((k) => k.playIds.length || what === "all");
   const title = what === "one" ? plays[0]?.name : what === "list" && state.pkg !== "all" ? book.packages.find((k) => k.id === state.pkg)?.name : what === "all" ? "Whole playbook" : `${plays.length} plays`;
   return { nxt: 1, version: book.version, what, title, formations, plays, packages, ...(withRoster ? { roster: book.roster } : {}) };
 }
