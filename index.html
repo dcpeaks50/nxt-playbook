@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109205215">
+<meta name="nxt-build" content="20261109210456">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -120,7 +120,11 @@ body.menus .panel.closed .secact{display:none}
 .titlebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .titlebar h1{margin:0;font-size:20px;flex:1;min-width:180px}
 .titlebar input.title{flex:1;min-width:180px;font-size:18px;font-weight:800;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
-.fieldwrap{background:#1f5d24;display:flex;justify-content:center}
+.fieldwrap{position:relative;background:#1f5d24;display:flex;justify-content:center}
+/* video-style controls on the field: big play in the middle, full screen in the corner */
+.ov-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:84px;height:84px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:36px;padding-left:6px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.35)}
+.ov-fs{position:absolute;right:10px;bottom:10px;width:48px;height:48px;border-radius:12px;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:24px;line-height:1;display:flex;align-items:center;justify-content:center}
+.ov-play[hidden],.ov-fs[hidden]{display:none}
 svg#field{display:block;width:100%;height:auto;max-height:72vh;touch-action:none;user-select:none}
 .controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--line)}
 .play{width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:18px;font-weight:900}
@@ -174,7 +178,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 #btn-fsclose,.fsnav{display:none}
 body.fs{overflow:hidden}
 body.fs .stage{position:fixed;inset:0;z-index:60;border:0;border-radius:0;display:flex;flex-direction:column;background:#0b130c;color:#fff}
-body.fs .formplays,body.fs .editbar,body.fs .details,body.fs #title-in,body.fs #title-tags,body.fs #labels,body.fs #btn-ghost,body.fs #btn-edit,body.fs #btn-fs,body.fs #scrub,body.fs #time{display:none}
+body.fs .formplays,body.fs .editbar,body.fs .details,body.fs #title-in,body.fs #title-tags,body.fs #labels,body.fs #btn-ghost,body.fs #btn-edit,body.fs #scrub,body.fs #time{display:none}
 body.fs #btn-fsclose,body.fs .fsnav{display:inline-flex;align-items:center;justify-content:center}
 body.fs .titlebar{padding:6px 10px;gap:6px 10px;border:0;background:#0b130c}
 body.fs .titlebar h1{font-size:17px;min-width:0}
@@ -263,7 +267,6 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
       <div class="seg" id="dir" role="group" aria-label="Direction" title="Run the play to the right or to the left"><button data-v="R" aria-pressed="true">Right</button><button data-v="L">Left</button></div>
       <button class="btn" id="btn-edit">Edit</button>
       <button class="btn primary" id="btn-call" title="Call a pass play from a formation: 23, X9, Y pop…">📣 Call a play</button>
-      <button class="btn" id="btn-fs" title="Show the play full screen. Turn the phone sideways to make it bigger.">⛶ Full screen</button>
       <button class="btn" id="btn-fsclose" aria-label="Close full screen">✕</button>
     </div>
     <div class="formplays" id="formplays" hidden></div>
@@ -299,7 +302,9 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
       <button class="btn sm danger" id="btn-delform">Delete formation</button>
       <button class="btn sm primary" id="btn-done">Done</button>
     </div>
-    <div class="fieldwrap"><svg id="field" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Football field with the play"></svg></div>
+    <div class="fieldwrap"><svg id="field" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Football field with the play"></svg>
+      <button class="ov-play" id="ov-play" aria-label="Play" hidden>▶</button>
+      <button class="ov-fs" id="btn-fs" aria-label="Full screen" title="Full screen. Turn the tablet sideways to make it bigger.">⛶</button></div>
     <div class="controls">
       <button class="fsnav" id="btn-fsprev" aria-label="Previous play">‹</button>
       <button class="play" id="btn-play" aria-label="Play">▶</button>
@@ -1922,6 +1927,7 @@ function blockEnd(a, b, color) {
   return `<line x1="${b.x - Math.cos(ang) * w}" y1="${sy(b.y) - Math.sin(ang) * w}" x2="${b.x + Math.cos(ang) * w}" y2="${sy(b.y) + Math.sin(ang) * w}" stroke="${color}" stroke-width="0.32" stroke-linecap="round"/>`;
 }
 function draw() {
+  syncOverlay();
   const f = viewFormation(), play = viewPlay();
   const fmt = f?.format || state.format, W = WIDTH[fmt];
   // Phones: zoom to the part of the field the play uses so the players aren't tiny (not while editing).
@@ -2039,11 +2045,19 @@ function tick(ts) {
   setT(state.t + dt * state.rate);
   requestAnimationFrame(tick);
 }
+// Like a video: a big ▶ on the field before the play starts, tap the field to play / pause, ⛶ in the corner for full screen.
+function syncOverlay() {
+  const editing = state.mode === "edit", f = currentFormation(), fs = document.body.classList.contains("fs");
+  const hasPlay = !!(currentPlay() || (f && visiblePlays().some((x) => x.formationId === f.id)));
+  $("#ov-play").hidden = editing || state.playing || state.t > 0.01 || !hasPlay; // only before the snap; after that a tap on the field plays / pauses
+  $("#btn-fs").hidden = editing || fs; // full screen has its own ✕ up top
+}
 function setPlaying(on) {
   if (on && !currentPlay()) return;
   state.playing = on;
   $("#btn-play").textContent = on ? "❚❚" : "▶";
   $("#btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
+  syncOverlay();
   if (on) { if (state.t >= playDuration(viewPlay(), viewFormation()) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
 }
 $("#btn-play").onclick = () => {
@@ -2143,6 +2157,7 @@ function stepPlay(d) {
   if (next) openPlay(next.id);
 }
 $("#btn-fs").onclick = () => setFullscreen(true);
+$("#ov-play").onclick = () => $("#btn-play").click();
 $("#btn-fsclose").onclick = () => setFullscreen(false);
 $("#btn-fsprev").onclick = () => stepPlay(-1);
 $("#btn-fsnext").onclick = () => stepPlay(1);
@@ -2150,11 +2165,11 @@ $("#btn-fsnext").onclick = () => stepPlay(1);
 for (const ev of ["fullscreenchange", "webkitfullscreenchange"]) document.addEventListener(ev, () => { if (!document.fullscreenElement && !document.webkitFullscreenElement) setFullscreen(false); });
 window.addEventListener("resize", () => { if (isFs()) draw(); });
 let fsTouch = null;
-$(".fieldwrap").addEventListener("pointerdown", (e) => { if (isFs()) fsTouch = { x: e.clientX, y: e.clientY }; });
+$(".fieldwrap").addEventListener("pointerdown", (e) => { if (state.mode !== "edit" && !e.target.closest("button")) fsTouch = { x: e.clientX, y: e.clientY }; });
 $(".fieldwrap").addEventListener("pointerup", (e) => {
-  if (!isFs() || !fsTouch) return;
+  if (state.mode === "edit" || !fsTouch) return;
   const dx = e.clientX - fsTouch.x, dy = e.clientY - fsTouch.y; fsTouch = null;
-  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPlay(dx < 0 ? 1 : -1);
+  if (isFs() && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPlay(dx < 0 ? 1 : -1);
   else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) $("#btn-play").click();
 });
 document.addEventListener("keydown", (e) => {
