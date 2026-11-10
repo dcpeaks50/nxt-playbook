@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261109210456">
+<meta name="nxt-build" content="20261109211409">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -178,7 +178,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 #btn-fsclose,.fsnav{display:none}
 body.fs{overflow:hidden}
 body.fs .stage{position:fixed;inset:0;z-index:60;border:0;border-radius:0;display:flex;flex-direction:column;background:#0b130c;color:#fff}
-body.fs .formplays,body.fs .editbar,body.fs .details,body.fs #title-in,body.fs #title-tags,body.fs #labels,body.fs #btn-ghost,body.fs #btn-edit,body.fs #scrub,body.fs #time{display:none}
+body.fs .formplays,body.fs .callbar,body.fs .editbar,body.fs .details,body.fs #title-in,body.fs #title-tags,body.fs #labels,body.fs #btn-ghost,body.fs #btn-edit,body.fs #scrub,body.fs #time{display:none}
 body.fs #btn-fsclose,body.fs .fsnav{display:inline-flex;align-items:center;justify-content:center}
 body.fs .titlebar{padding:6px 10px;gap:6px 10px;border:0;background:#0b130c}
 body.fs .titlebar h1{font-size:17px;min-width:0}
@@ -1624,7 +1624,9 @@ function routeFor(num, spot) { const rt = ROUTES.find((x) => x.n === String(num)
 /** Read a call against a formation: { routes: {pos: num}, order: [pos…], problems: [text…] } */
 function readCall(f, text, rest) {
   const recv = f.spots.filter((p) => !NON_RECEIVERS.test(p.pos));
-  const callSide = recv.filter((p) => p.x > 0.5).sort((a, b) => b.x - a.x);
+  // Backs (lined up behind the QB) are not counted outside-in; call them by name (H3). Uncalled, they stay in and block.
+  const isBack = (p) => p.y < -3;
+  const callSide = recv.filter((p) => p.x > 0.5 && !isBack(p)).sort((a, b) => b.x - a.x);
   const byPos = Object.fromEntries(recv.map((p) => [p.pos.toUpperCase(), p.pos]));
   const routes = {}, order = [], problems = [];
   const give = (pos, num) => { if (!routeName(num)) { problems.push(`${num} isn't in the route tree (${ROUTES.map((x) => x.n).join(", ")})`); return; } routes[pos] = num; if (!order.includes(pos)) order.push(pos); };
@@ -1642,7 +1644,7 @@ function readCall(f, text, rest) {
     }
     problems.push(`didn't understand “${t}”`);
   }
-  for (const p of recv) if (!(p.pos in routes)) routes[p.pos] = String(rest);
+  for (const p of recv) if (!(p.pos in routes) && !isBack(p)) routes[p.pos] = String(rest);
   return { routes, order, problems, callSide: callSide.map((p) => p.pos) };
 }
 /** The play a call draws (not saved unless you tap Save as play). */
@@ -2112,7 +2114,8 @@ function renderCallDetails() {
   const f = formationById(state.call.formationId); if (!f) { $("#details").innerHTML = ""; return; }
   const r = readCall(f, state.call.text, state.call.rest);
   const rows = f.spots.filter((p) => r.routes[p.pos]).map((p) => `<li><b>${esc(p.pos)}</b>${kidFor(f, p.pos) ? ` (${esc(kidFor(f, p.pos).name)})` : ""}: ${r.routes[p.pos]} · ${routeName(r.routes[p.pos]) || "?"}${r.order.includes(p.pos) ? "" : ` <span class="hint">(rest)</span>`}</li>`).join("");
-  $("#details").innerHTML = `<div class="box"><h3>The call · ${esc(playName(callPlay()))}</h3><ul class="events" style="list-style:none">${rows}</ul><p class="hint">The QB reads it; the star is the first receiver you called. Pick another formation in the list to call it from there.</p></div>`;
+  const backs = f.spots.filter((p) => p.y < -3 && !NON_RECEIVERS.test(p.pos) && !r.routes[p.pos]).map((p) => p.pos);
+  $("#details").innerHTML = `<div class="box"><h3>The call · ${esc(playName(callPlay()))}</h3><ul class="events" style="list-style:none">${rows}${backs.length ? `<li><b>${backs.map(esc).join(", ")}</b>: stay in and block</li>` : ""}</ul><p class="hint">The QB reads it; the star is the first receiver you called. Pick another formation in the list to call it from there.</p></div>`;
 }
 function setCallText(text) { state.call.text = text; $("#call-in").value = text; setPlaying(false); state.t = 0; renderCaller(); refresh(); }
 $("#btn-call").onclick = openCaller;
@@ -2274,7 +2277,14 @@ $("#plays").onclick = (e) => {
 $("#plays").onkeydown = (e) => { if (e.key === "Enter") { const it = e.target.closest("[data-p]"); if (it) openPlay(it.dataset.p); } };
 // On a phone the list sits above the field: after picking something, bring the field into view.
 const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; const top = document.querySelector(".stage").getBoundingClientRect().top + scrollY - document.querySelector("header").offsetHeight - 8; scrollTo({ top, behavior: "smooth" }); };
-function openPlay(id) { if (state.call) closeCaller(false); setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
+// A "call" play (play.call = "27 X9") opens the play caller on its formation with that call filled in: change the numbers to change the routes.
+function openCallPlay(p) {
+  if (state.mode === "edit") $("#btn-done").click();
+  setPlaying(false); state.formationOnly = false; state.playId = p.id; state.opt = 0; state.selPos = null; state.t = 0;
+  state.call = { formationId: p.formationId, text: p.call, rest: p.callRest || store.get("nxt.callrest", "4") };
+  state.formationId = p.formationId; $("#call-in").value = p.call; renderCaller(); refresh();
+}
+function openPlay(id) { const cp = book.plays.find((q) => q.id === id); if (cp?.call) { openCallPlay(cp); return; } if (state.call) closeCaller(false); setPlaying(false); state.formationOnly = false; if (state.playId !== id) state.opt = 0; state.playId = id; state.selPos = null; state.t = 0; if (state.mode === "edit") state.editMode = "play"; refresh(); }
 // + Add plays: tick plays from the whole playbook (this format, offense/defense filter) into the selected package
 function renderPkPicker() {
   const pk = book.packages.find((k) => k.id === state.pkg); if (!pk) return;
