@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NXT Playbook</title>
-<meta name="nxt-build" content="20261110093119">
+<meta name="nxt-build" content="20261111095030">
 <style>
 :root{
   --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
@@ -28,11 +28,13 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
 .seg button{border:0;background:transparent;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg a{padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.seg a:hover{color:var(--ink)}
 .spacer{flex:1}
 .menu{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding-top:10px;border-top:1px solid var(--line)}
 .menu[hidden]{display:none}
 .menubtn[aria-expanded="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-@media (max-width:560px){header{gap:8px 10px;padding:8px 12px}.brand span{display:none}.viewsw button{padding:6px 10px}.mlabel{display:none}.menubtn{padding:6px 12px;font-size:18px;line-height:1}.sync{order:9;flex-basis:100%;text-align:right;margin-top:-4px}}
+@media (max-width:560px){header{gap:8px 10px;padding:8px 12px}.brand span{display:none}.viewsw button,.viewsw a{padding:6px 7px;font-size:12.5px}.viewsw .tx{display:none}.mlabel{display:none}.menubtn{padding:6px 12px;font-size:18px;line-height:1}.sync{order:9;flex-basis:100%;text-align:right;margin-top:-4px}}
 .btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px}
 .btn:hover{border-color:var(--muted)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -214,7 +216,7 @@ body.fs .controls .btn,body.fs #btn-fsclose{background:transparent;color:#fff;bo
 <body>
 <header>
   <div class="brand"><b>NXT</b><span>Playbook</span></div>
-  <div class="seg viewsw" id="view" role="group" aria-label="Show"><button data-v="plays" aria-pressed="true">Playbook</button><button data-v="practice">Practice Schedule</button></div>
+  <div class="seg viewsw" id="view" role="group" aria-label="Show"><button data-v="plays" aria-pressed="true">Playbook</button><button data-v="practice">Practice Schedule</button><a href="hoops.html" title="Basketball plays">🏀<span class="tx"> Basketball</span></a></div>
   <div class="spacer"></div>
   <span class="sync" id="sync" title="Everyone with the link shares this playbook"></span>
   <button class="btn menubtn" id="btn-menu" aria-expanded="false" aria-controls="menu" aria-label="Menu">☰<span class="mlabel"> Menu</span></button>

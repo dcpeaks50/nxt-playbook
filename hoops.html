@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NXT Basketball</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161a22; --panel2:#1e2330; --line:#2b3242; --ink:#eef1f6; --muted:#9aa4b5;
+  --accent:#22c55e; --accent-ink:#06210f; --gold:#facc15; --danger:#ef4444; --orange:#f97316;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg:#f2f4f7; --panel:#ffffff; --panel2:#eef1f5; --line:#d9dee7; --ink:#10151d; --muted:#5b6575; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:inherit}
+[hidden]{display:none!important}
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:900;letter-spacing:.06em;font-size:20px}
+.brand b{background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:2px 8px}
+.brand span{font-weight:600;font-size:13px;color:var(--muted);letter-spacing:.02em}
+.seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button,.seg a{border:0;background:transparent;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted);text-decoration:none}
+.seg [aria-pressed="true"],.seg [aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px}
+.app{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){.app{grid-template-columns:1fr;padding:12px}}
+@media (max-width:560px){header{gap:8px 10px;padding:8px 12px}.brand span{display:none}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
+.panel + .panel{margin-top:14px}
+.panel h2{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.list{display:flex;flex-direction:column;gap:6px}
+.item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 10px;font-weight:650}
+.item[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.item .n{font-size:11px;font-weight:800;border-radius:999px;padding:2px 7px;background:var(--line)}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.titlebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.titlebar h1{margin:0;font-size:20px;flex:1;min-width:180px}
+.tag{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--line)}
+.tag.O{background:#1d4ed8;color:#fff}.tag.D{background:#b91c1c;color:#fff}
+.fieldwrap{position:relative;background:#7a4a24;display:flex;justify-content:center;touch-action:manipulation}
+svg#court{display:block;width:100%;height:auto;max-height:74vh;user-select:none}
+.ov-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:84px;height:84px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:36px;padding-left:6px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.35)}
+.ov-fs{position:absolute;right:10px;bottom:10px;width:48px;height:48px;border-radius:12px;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center}
+.stepnow{position:absolute;left:10px;right:66px;bottom:10px;background:rgba(0,0,0,.62);color:#fff;border-radius:10px;padding:7px 11px;font-size:14px;font-weight:600;pointer-events:none}
+.stepnow b{color:var(--gold)}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--line)}
+.play{width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:18px;font-weight:900}
+.controls input[type=range]{flex:1;min-width:140px;accent-color:var(--accent);height:28px}
+.time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:86px;text-align:right}
+.fsnav{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:transparent;font-size:24px;line-height:1}
+.details{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:14px;border-top:1px solid var(--line)}
+.box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.box h3{margin:0 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.steps button{display:flex;gap:10px;width:100%;text-align:left;border:1px solid transparent;background:none;border-radius:8px;padding:6px 8px}
+.steps button i{font-style:normal;font-weight:900;min-width:20px;height:20px;border-radius:50%;background:var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.steps button[aria-current="true"]{background:var(--panel);border-color:var(--accent)}
+.steps button[aria-current="true"] i{background:var(--accent);color:var(--accent-ink)}
+.key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.key svg{vertical-align:middle}
+/* full screen: just the court and the controls */
+body.fs{overflow:hidden}
+body.fs .stage{position:fixed;inset:0;z-index:60;border:0;border-radius:0;display:flex;flex-direction:column;background:#1b120b;color:#fff}
+body.fs .details,body.fs #scrub,body.fs #time,body.fs .ov-fs,body.fs .titlebar .tag{display:none}
+body.fs .titlebar{padding:6px 10px;border:0}
+body.fs .titlebar h1{font-size:17px}
+body.fs .fieldwrap{flex:1;min-height:0;align-items:center;touch-action:none}
+body.fs svg#court{width:100%;height:100%;max-height:none}
+body.fs .controls{justify-content:center;border:0;padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
+body.fs .controls .btn,body.fs .fsnav{background:transparent;color:#fff;border:1px solid #ffffff55;min-width:46px;height:46px;border-radius:23px}
+#btn-fsclose{display:none}
+body.fs #btn-fsclose{display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#fff;border:1px solid #ffffff55;width:46px;height:46px;border-radius:23px}
+body:not(.fs) .fsnav{display:none}
+@media (orientation:landscape) and (max-height:520px){body.fs .controls{position:absolute;right:8px;bottom:8px;padding:0;gap:8px}body.fs .stepnow{right:330px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>NXT</b><span>Basketball</span></div>
+  <nav class="seg" aria-label="Sport"><a href="index.html">🏈 Football</a><a href="hoops.html" aria-current="page">🏀 Basketball</a></nav>
+</header>
+<div class="app">
+  <aside>
+    <section class="panel">
+      <h2>Side</h2>
+      <div class="seg" id="side" role="group" aria-label="Offense or defense"><button data-v="O">Offense</button><button data-v="D">Defense</button></div>
+      <h2 style="margin-top:14px">Packages</h2>
+      <div class="chips" id="pkgs"></div>
+    </section>
+    <section class="panel">
+      <h2>Plays</h2>
+      <div class="list" id="plays"></div>
+    </section>
+  </aside>
+  <main class="stage">
+    <div class="titlebar">
+      <h1 id="title">Pick a play</h1>
+      <span id="tags"></span>
+      <button id="btn-fsclose" aria-label="Close full screen">✕</button>
+    </div>
+    <div class="fieldwrap" id="fieldwrap">
+      <svg id="court" viewBox="-26 -4 52 53.5" role="img" aria-label="Basketball half court with the play"></svg>
+      <button class="ov-play" id="ov-play" aria-label="Play">▶</button>
+      <button class="ov-fs" id="btn-fs" aria-label="Full screen" title="Full screen. Turn the tablet sideways to make it bigger.">⛶</button>
+      <div class="stepnow" id="stepnow" hidden></div>
+    </div>
+    <div class="controls">
+      <button class="fsnav" id="btn-prev" aria-label="Previous play">‹</button>
+      <button class="play" id="btn-play" aria-label="Play">▶</button>
+      <button class="btn" id="btn-rate">1×</button>
+      <button class="btn" id="btn-restart" aria-label="Back to the start">⟲</button>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Play progress">
+      <span class="time" id="time">0.0s</span>
+      <button class="fsnav" id="btn-next" aria-label="Next play">›</button>
+    </div>
+    <div class="details" id="details"></div>
+  </main>
+</div>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+// ---------------------------------------------------------------- the court (feet). Baseline at y = 0 (top), half court at y = 47.
+const RIM = [0, 5.25];
+// moves: cut (solid arrow), drib (zig-zag), screen (ends in a bar), slide (defense, red)
+const cut = (...pts) => ({ k: "cut", pts }), drib = (...pts) => ({ k: "drib", pts }), scr = (...pts) => ({ k: "screen", pts }), sl = (...pts) => ({ k: "slide", pts });
+
+const PKGS = {
+  O: [{ id: "mo", name: "Man offense" }, { id: "zo", name: "Zone offense" }, { id: "in", name: "Inbounds" }],
+  D: [{ id: "man", name: "Man" }, { id: "zone", name: "1-2-2 Trap" }],
+};
+
+// 4 out, 1 in
+const FOUR_OUT = { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [-21, 4], O5: [6, 8] };
+
+const PLAYS = [
+  // ------------------------------------------------ Man offense
+  { id: "giveandgo", name: "Give & Go", side: "O", pkg: "mo", ball: "O1",
+    at: { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [21, 4], O5: [-6, 8] },
+    notes: "Pass and cut. The second you pass, fake one way and cut hard to the basket with your hand up. 5 stays on the other block so the lane is open.",
+    beats: [
+      { say: "1 passes to 2 on the wing.", pass: "O2", m: { O2: cut([17, 22]) } },
+      { say: "1 fakes left, then cuts hard to the basket (the “go”).", m: { O1: cut([-3, 25], [2, 13], [2, 8]) } },
+      { say: "2 hits 1 with a bounce pass. 3 fills the top.", pass: "O1", m: { O1: cut([1.5, 6.8]), O3: cut([-3, 26]) } },
+      { say: "Layup!", shot: true, label: "SCORE!" },
+    ] },
+  { id: "pnr", name: "Pick & Roll", side: "O", pkg: "mo", ball: "O1",
+    at: { O1: [0, 28], O2: [17, 21], O3: [-17, 21], O4: [-21, 4], O5: [6, 10] },
+    notes: "5 sets the screen on 1's defender and holds still. 1 waits for the screen, then goes shoulder to shoulder off it. 5 rolls to the rim with his hands up.",
+    beats: [
+      { say: "5 comes up and sets a screen on 1's defender.", m: { O5: scr([2.4, 26.4]) } },
+      { say: "1 dribbles right off the screen. 5 rolls to the basket. 2 slides to the corner to make room.", m: { O1: drib([5, 25], [9, 19.5]), O5: cut([3, 18], [2, 9]), O2: cut([21, 6]) } },
+      { say: "1 hits 5 rolling to the rim.", pass: "O5", m: { O5: cut([1.5, 7]) } },
+      { say: "Layup! (If 5 is covered, 1 pulls up and shoots.)", shot: true, label: "SCORE!" },
+    ] },
+  { id: "backdoor", name: "Backdoor", side: "O", pkg: "mo", ball: "O1",
+    at: { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [-21, 4], O5: [-6, 8] },
+    notes: "Use it when 2's defender is overplaying the pass. Walk him up, then plant and go behind him. Bounce pass to the cutter.",
+    beats: [
+      { say: "2's defender is overplaying. 2 walks him up toward half court.", m: { O2: cut([19, 26]) } },
+      { say: "2 plants his outside foot and cuts backdoor to the basket.", m: { O2: cut([14, 18], [4, 8]) } },
+      { say: "1 throws the bounce pass.", pass: "O2", m: { O2: cut([2, 6.8]) } },
+      { say: "Layup!", shot: true, label: "SCORE!" },
+    ] },
+  { id: "screenaway", name: "Screen Away", side: "O", pkg: "mo", ball: "O1",
+    at: { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [-21, 4], O5: [6, 8] },
+    notes: "Pass one way, screen the other way. 2 waits for the screen, then comes off it tight to the top for the shot.",
+    beats: [
+      { say: "1 passes to 3.", pass: "O3" },
+      { say: "1 goes away from the ball and screens for 2.", m: { O1: scr([12.5, 23]) } },
+      { say: "2 comes off the screen to the top. 1 steps back out to the wing.", m: { O2: cut([10, 25], [1, 27]), O1: cut([17, 21]) } },
+      { say: "3 passes to 2.", pass: "O2" },
+      { say: "Shot!", shot: true, label: "SCORE!" },
+    ] },
+  { id: "drivekick", name: "Drive & Kick", side: "O", pkg: "mo", ball: "O1",
+    at: { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [21, 4], O5: [-6, 8] },
+    notes: "Attack the gap. When a second defender comes to stop you, kick it to the open man. Corner shooters: stay wide and have your hands ready.",
+    beats: [
+      { say: "1 drives hard into the lane.", m: { O1: drib([4, 20], [5, 13]) } },
+      { say: "4's defender helps to stop him. 1 kicks it out to 4 in the corner.", pass: "O4", m: { O1: cut([4, 12]) } },
+      { say: "Shoot the corner shot!", shot: true, label: "SCORE!" },
+    ] },
+
+  // ------------------------------------------------ Zone offense
+  { id: "zskip", name: "Overload & Skip", side: "O", pkg: "zo", ball: "O1",
+    at: { O1: [0, 28], O2: [17, 20], O3: [-17, 20], O4: [21, 4], O5: [9, 11] },
+    notes: "Put three on one side so the zone runs over there, then skip it over the top to the other side. Skip passes are two-hand overhead passes.",
+    beats: [
+      { say: "1 passes to 2 on the wing. The zone shifts to the ball.", pass: "O2" },
+      { say: "2 swings it to 4 in the corner. Everyone in the zone runs to that side.", pass: "O4", m: { O3: cut([-18, 15]) } },
+      { say: "4 passes back to 2.", pass: "O2" },
+      { say: "2 skips it over the top to 3 on the far side.", pass: "O3", lob: true },
+      { say: "Wide open shot!", shot: true, label: "SCORE!" },
+    ] },
+  { id: "zflash", name: "High Post Flash", side: "O", pkg: "zo", ball: "O1",
+    at: { O1: [0, 28], O2: [18, 19], O3: [-18, 19], O4: [12, 4], O5: [-6, 7] },
+    notes: "The middle of the zone is the hole. 5 flashes to the free-throw line, catches, and turns to look at the basket right away.",
+    beats: [
+      { say: "1 passes to 2 on the wing.", pass: "O2" },
+      { say: "5 flashes into the middle of the zone, at the free-throw line.", m: { O5: cut([-4, 13], [0, 18]) } },
+      { say: "2 hits 5 in the middle. 4 sneaks in along the baseline.", pass: "O5", m: { O4: cut([8, 5]) } },
+      { say: "5 turns and finds 4 cutting to the rim (or shoots it).", pass: "O4", m: { O4: cut([2, 6]) } },
+      { say: "Layup!", shot: true, label: "SCORE!" },
+    ] },
+
+  // ------------------------------------------------ Inbounds
+  { id: "box", name: "Box (under our basket)", side: "O", pkg: "in", ball: "O1",
+    at: { O1: [5, -1.5], O4: [-6, 8], O5: [6, 8], O2: [-6, 19], O3: [6, 19] },
+    notes: "Line up in a box. Go on 1's slap of the ball. Look for 4 first, then 3 in the corner, then 2 at the top to be safe.",
+    beats: [
+      { say: "On the slap: 5 screens across for 4. 3 pops to the corner, 2 goes to the top.", m: { O5: scr([-4, 7.5]), O4: cut([-6, 11], [-1, 10.5], [3, 6]), O3: cut([13, 12], [20, 4]), O2: cut([0, 25]) } },
+      { say: "1 passes to 4 cutting to the basket.", pass: "O4", m: { O4: cut([2, 6]) } },
+      { say: "Layup!", shot: true, label: "SCORE!" },
+    ] },
+
+  // ------------------------------------------------ Man defense
+  { id: "jump", name: "Jump to the Ball", side: "D", pkg: "man", ball: "O1",
+    at: { ...FOUR_OUT, X1: [0, 24.5], X2: [13, 19], X3: [-13, 19], X4: [-12, 8], X5: [5, 10] },
+    notes: "On the ball: arm's length, between your man and the basket. One pass away: hand in the passing lane (deny). Two passes away: one foot in the paint (help). Move while the ball is in the air!",
+    beats: [
+      { say: "1 passes to 2. Everyone moves while the ball is in the air: X2 on the ball, X1 jumps to the ball, X3 and X4 sink to help.", pass: "O2",
+        m: { X2: sl([14.5, 19]), X1: sl([3, 23.5]), X3: sl([-5, 16]), X4: sl([-4, 8]), X5: sl([7.5, 9.5]) } },
+      { say: "2 passes back to 1. Jump back!", pass: "O1",
+        m: { X2: sl([13, 19]), X1: sl([0, 24.5]), X3: sl([-13, 19]), X4: sl([-12, 8]), X5: sl([5, 10]) } },
+      { say: "1 swings it to 3. Same thing on this side: X2 and X5 sink to help, X4 denies the corner.", pass: "O3",
+        m: { X3: sl([-14.5, 19]), X1: sl([-3, 23.5]), X2: sl([5, 16]), X4: sl([-17.5, 6]), X5: sl([-1, 9]) } },
+    ] },
+  { id: "help", name: "Help & Recover", side: "D", pkg: "man", ball: "O2",
+    at: { ...FOUR_OUT, X1: [2, 24.5], X2: [14.5, 19.5], X3: [-5, 16], X4: [-4, 8], X5: [7, 9.5] },
+    notes: "If your teammate gets beat, the helper stops the ball before it gets to the basket. When the ball is passed back out, sprint back to your man with high hands and short, choppy steps (close out).",
+    beats: [
+      { say: "2 beats his man and drives down the baseline. X2 chases.", m: { O2: drib([18, 13], [12, 7]), X2: sl([16, 14], [13.5, 9]) } },
+      { say: "Help! X5 steps over to stop the ball. 2 picks up his dribble.", m: { X5: sl([10, 6.5]) } },
+      { say: "2 passes to 5. X5 gets right back to 5; X2 stays with 2.", pass: "O5", m: { X5: sl([5.5, 7]), X2: sl([11, 8.5]) } },
+    ] },
+  { id: "switch", name: "Switch the Screen", side: "D", pkg: "man", ball: "O1",
+    at: { O1: [0, 28], O2: [17, 21], O3: [-17, 21], O4: [-21, 4], O5: [6, 10], X1: [0, 25], X2: [13.5, 19.5], X3: [-13.5, 19.5], X4: [-12, 8], X5: [5, 12.5] },
+    notes: "The big guarding the screener yells “SWITCH!” early and loud. He steps out to take the ball; the guard takes the screener rolling to the rim. Talk!",
+    beats: [
+      { say: "5 comes up to set a screen on X1. X5 goes with him, yelling “Screen!”", m: { O5: scr([2.4, 26.4]), X5: sl([3.5, 23]) } },
+      { say: "“SWITCH!” X5 steps out and takes 1. X1 takes 5 rolling to the basket.", label: "SWITCH!",
+        m: { O1: drib([5, 25], [9, 19.5]), O5: cut([3, 18], [2, 9]), X5: sl([6, 21], [7.5, 17.5]), X1: sl([3, 20], [3, 10]) } },
+    ] },
+
+  // ------------------------------------------------ 1-2-2 trap
+  { id: "z122", name: "1-2-2: Set Up & Slide", side: "D", pkg: "zone", ball: "O1",
+    at: { O1: [0, 38], O2: [18, 22], O3: [-18, 22], O4: [20, 4], O5: [0, 18],
+      X1: [0, 32], X2: [11, 25], X3: [-11, 25], X4: [-6, 9], X5: [6, 9] },
+    notes: "X1 = the point (top). X2 and X3 = the wings. X4 and X5 = the low guys. Everyone moves with the ball, every pass. X1 turns the ball handler toward a sideline.",
+    beats: [
+      { say: "1 brings it up. X1 meets him at the top and turns him toward the sideline.", m: { O1: drib([4, 33], [8, 31]), X1: sl([6, 28.5]), X2: sl([12, 25]), X3: sl([-5, 22]), X4: sl([-3, 9]), X5: sl([7, 8.5]) } },
+      { say: "1 passes to 2 on the wing. Everybody slides with the ball.", pass: "O2",
+        m: { X2: sl([15.5, 20]), X1: sl([7, 23]), X3: sl([-2, 18.5]), X5: sl([14, 7]), X4: sl([-1, 7]) } },
+      { say: "Ball back to the top. Everybody slides back.", pass: "O1",
+        m: { X1: sl([6, 28.5]), X2: sl([12, 24]), X3: sl([-5, 22]), X5: sl([6, 9]), X4: sl([-5, 9]) } },
+    ] },
+  { id: "trapwing", name: "Trap the Wing", side: "D", pkg: "zone", ball: "O1",
+    at: { O1: [0, 32], O2: [18, 22], O3: [-18, 22], O4: [21, 4], O5: [0, 18],
+      X1: [0, 29], X2: [11, 24], X3: [-11, 24], X4: [-6, 8], X5: [6, 8] },
+    notes: "Trap with the sideline. X2 takes away the baseline, X1 comes from the top. Hands high, knees together, don't reach or foul. Everyone else guards a passing lane and reads the passer's eyes.",
+    beats: [
+      { say: "1 passes to 2. While the ball is in the air: X2 closes out low, X1 sprints over from the top. X5 takes the corner, X3 the middle, X4 the basket.", pass: "O2",
+        m: { X2: sl([16.5, 20]), X1: sl([19.5, 24.5]), X3: sl([-1, 20]), X5: sl([17, 8]), X4: sl([2, 7]), O1: cut([-3, 32]) },
+        trap: { on: "O2", by: ["X1", "X2"] }, label: "TRAP!" },
+      { say: "TRAP! Make him throw a lob.", trap: { on: "O2", by: ["X1", "X2"] }, dur: 1.1 },
+      { say: "He lobs it back to the top. X3 reads his eyes and steals it!", pass: "X3", lob: true, m: { X3: sl([-2.5, 28]) }, label: "STEAL!" },
+    ] },
+  { id: "trapcorner", name: "Trap the Corner", side: "D", pkg: "zone", ball: "O2",
+    at: { O1: [-2, 32], O2: [18, 21], O3: [-18, 20], O4: [21, 4], O5: [0, 18],
+      X1: [5, 25], X2: [15.5, 19.5], X3: [-2, 19], X4: [-2, 7], X5: [12, 8] },
+    notes: "The corner is the best place to trap: the sideline and the baseline are two extra defenders. X1 takes away the pass back to the wing, X3 fronts the post, X4 guards the basket.",
+    beats: [
+      { say: "2 passes to 4 in the corner. X5 closes out on the baseline side, X2 runs down to trap. X1 takes the wing, X3 fronts 5 on the block.", pass: "O4",
+        m: { X5: sl([18.5, 5.5]), X2: sl([19, 9]), X1: sl([14.5, 17]), O5: cut([6, 8]), X3: sl([4, 9.5]), X4: sl([-3, 6]) },
+        trap: { on: "O4", by: ["X2", "X5"] }, label: "TRAP!" },
+      { say: "TRAP in the corner! Hands up, no reaching.", trap: { on: "O4", by: ["X2", "X5"] }, dur: 1.1 },
+      { say: "4 tries to throw it back to 2. X1 steps in front and steals it!", pass: "X1", m: { X1: sl([16, 15.5]) }, label: "STEAL!" },
+    ] },
+  { id: "traphalf", name: "Trap at Half Court", side: "D", pkg: "zone", ball: "O1",
+    at: { O1: [-6, 47], O2: [16, 26], O3: [-19, 22], O4: [0, 18], O5: [19, 6],
+      X1: [0, 36], X2: [11, 30], X3: [-11, 30], X4: [-6, 10], X5: [6, 10] },
+    notes: "Let him cross half court, then trap him in the corner made by the sideline and the half-court line. He can't go back over the line. X2 sneaks to the middle, X4 takes the sideline pass, X5 protects the basket.",
+    beats: [
+      { say: "1 brings it up the side. X1 turns him toward the sideline.", m: { O1: drib([-11, 44], [-15, 40.5]), X1: sl([-11, 38.5]), X2: sl([6, 29]), X3: sl([-12, 32]) } },
+      { say: "He's over half court: X3 jumps out and traps with X1. X2 takes the middle, X4 the sideline pass, X5 the basket.",
+        m: { X3: sl([-17, 37.5]), X1: sl([-13, 39]), X2: sl([-4, 31]), X4: sl([-16, 20]), X5: sl([0, 12]) },
+        trap: { on: "O1", by: ["X1", "X3"] }, label: "TRAP!" },
+      { say: "He throws it to the middle. X2 jumps it: steal!", pass: "X2", lob: true, m: { X2: sl([-6, 34]) }, label: "STEAL!" },
+    ] },
+];
+
+// ---------------------------------------------------------------- timing
+const BEAT = 1.35, HOLD = 0.7;
+const beatDur = (b) => b.dur || BEAT;
+function starts(p) { const s = []; let t = 0; for (const b of p.beats) { s.push(t); t += beatDur(b); } return s; }
+const duration = (p) => p.beats.reduce((a, b) => a + beatDur(b), 0) + HOLD;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = (f) => (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2);
+const lerp = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+function along(pts, f) {
+  const seg = []; let tot = 0;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); tot += d; }
+  if (!tot) return pts[pts.length - 1];
+  let want = f * tot;
+  for (let i = 0; i < seg.length; i++) { if (want <= seg[i] || i === seg.length - 1) return lerp(pts[i], pts[i + 1], seg[i] ? clamp(want / seg[i]) : 1); want -= seg[i]; }
+  return pts[pts.length - 1];
+}
+/** Where a player is at time t. */
+function posAt(p, id, t) {
+  let at = p.at[id]; const s = starts(p);
+  for (let i = 0; i < p.beats.length; i++) {
+    if (t <= s[i]) return at;
+    const m = p.beats[i].m?.[id]; if (!m) continue;
+    const f = clamp((t - s[i]) / beatDur(p.beats[i]));
+    if (f < 1) return along([at, ...m.pts], ease(f));
+    at = m.pts[m.pts.length - 1];
+  }
+  return at;
+}
+/** The ball at time t: { xy, holder, flying, lift, shot } */
+function ballAt(p, t) {
+  let holder = p.ball; const s = starts(p);
+  for (let i = 0; i < p.beats.length; i++) {
+    const b = p.beats[i]; if (t < s[i]) break;
+    const f = clamp((t - s[i]) / beatDur(b));
+    if (b.pass) {
+      if (f < 1) { const g = ease(clamp(f / 0.8)); return { xy: lerp(hand(p, holder, t), posAt(p, b.pass, t), g), flying: true, lift: (b.lob ? 0.9 : 0.35) * Math.sin(Math.PI * g) }; }
+      holder = b.pass;
+    }
+    if (b.shot) {
+      if (f < 1) { const g = ease(clamp(f / 0.85)); return { xy: lerp(hand(p, holder, t), RIM, g), flying: true, lift: 1.2 * Math.sin(Math.PI * g), shot: true }; }
+      return { xy: RIM, made: true };
+    }
+  }
+  const dribbling = p.beats.some((b, i) => b.m?.[holder]?.k === "drib" && t > s[i] && t < s[i] + beatDur(b));
+  return { xy: hand(p, holder, t), holder, dribbling };
+}
+const hand = (p, id, t) => { const xy = posAt(p, id, t); return [xy[0] + 1.05, xy[1] - 0.95]; };
+function beatIndex(p, t) { const s = starts(p); let i = -1; for (let k = 0; k < s.length; k++) if (t >= s[k]) i = k; return i; }
+
+// ---------------------------------------------------------------- drawing
+const COURT = (() => {
+  const L = 'stroke="#fff" stroke-width="0.32" fill="none"';
+  return `<rect x="-26" y="-4" width="52" height="53.5" fill="#7a4a24"/>
+  <rect x="-25" y="0" width="50" height="47" fill="#d39a5c"/>
+  <g opacity=".13" stroke="#5a3214" stroke-width=".18">${Array.from({ length: 24 }, (_, i) => `<line x1="${-25 + i * 2.1}" y1="0" x2="${-25 + i * 2.1}" y2="47"/>`).join("")}</g>
+  <rect x="-6" y="0" width="12" height="19" fill="#b8692f" ${L}/>
+  <path d="M-6 19 A6 6 0 0 0 6 19" ${L}/><path d="M-6 19 A6 6 0 0 1 6 19" ${L} stroke-dasharray="1 .9"/>
+  <path d="M-19.75 0 L-19.75 5.25 A19.75 19.75 0 0 0 19.75 5.25 L19.75 0" ${L}/>
+  ${[7, 10, 13].map((y) => `<line x1="-6.9" y1="${y}" x2="-6" y2="${y}" ${L}/><line x1="6" y1="${y}" x2="6.9" y2="${y}" ${L}/>`).join("")}
+  <path d="M-4 5.25 A4 4 0 0 0 4 5.25" ${L} opacity=".7"/>
+  <line x1="-25" y1="47" x2="25" y2="47" ${L}/><path d="M-6 47 A6 6 0 0 1 6 47" ${L}/>
+  <rect x="-25" y="0" width="50" height="47" ${L} stroke-width=".45"/>
+  <line x1="-3" y1="4" x2="3" y2="4" stroke="#fff" stroke-width=".45"/>
+  <line x1="0" y1="4" x2="0" y2="4.5" stroke="#f97316" stroke-width=".3"/>
+  <circle cx="0" cy="5.25" r=".75" fill="none" stroke="#f97316" stroke-width=".3"/>`;
+})();
+function zigzag(pts) {
+  const out = [pts[0]]; let flip = 1;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(2, Math.round(d / 1.1));
+    const nx = -(b[1] - a[1]) / (d || 1), ny = (b[0] - a[0]) / (d || 1);
+    for (let k = 1; k < n; k++) { const q = lerp(a, b, k / n); out.push([q[0] + nx * 0.55 * flip, q[1] + ny * 0.55 * flip]); flip = -flip; }
+    out.push(b);
+  }
+  return out;
+}
+const dpath = (pts) => "M" + pts.map((q) => q[0].toFixed(2) + " " + q[1].toFixed(2)).join(" L");
+function moveMarkup(m, from, op) {
+  const pts = [from, ...m.pts], end = pts[pts.length - 1], prev = pts[pts.length - 2];
+  const col = m.k === "slide" ? "#b91c1c" : "#1f2937", w = m.k === "slide" ? 0.3 : 0.36;
+  let d = m.k === "drib" ? dpath(zigzag(pts)) : dpath(pts), cap = "";
+  if (m.k === "screen") {
+    const ang = Math.atan2(end[1] - prev[1], end[0] - prev[0]), nx = -Math.sin(ang), ny = Math.cos(ang);
+    cap = `<line x1="${end[0] + nx * 1.4}" y1="${end[1] + ny * 1.4}" x2="${end[0] - nx * 1.4}" y2="${end[1] - ny * 1.4}" stroke="${col}" stroke-width=".55" stroke-linecap="round"/>`;
+  }
+  const marker = m.k === "screen" ? "" : ` marker-end="url(#${m.k === "slide" ? "ah-d" : "ah-o"})"`;
+  return `<g opacity="${op}"><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"${marker}/>${cap}</g>`;
+}
+function draw() {
+  const p = cur(), svg = $("#court");
+  if (!p) { svg.innerHTML = COURT; return; }
+  const t = state.t, s = starts(p), bi = state.t > 0 ? beatIndex(p, t) : -1, isD = p.side === "D";
+  let h = `<defs>
+    <marker id="ah-o" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#1f2937"/></marker>
+    <marker id="ah-d" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#b91c1c"/></marker>
+  </defs>` + COURT;
+  // the whole play drawn on the court; the step that's running is the darkest
+  p.beats.forEach((b, i) => {
+    const op = bi < 0 ? 0.85 : i === bi ? 1 : i < bi ? 0.3 : 0.5;
+    for (const [id, m] of Object.entries(b.m || {})) h += moveMarkup(m, posAt(p, id, s[i]), op);
+    if (b.pass || b.shot) {
+      let from = p.ball; for (let k = 0; k < i; k++) if (p.beats[k].pass) from = p.beats[k].pass;
+      const a = posAt(p, from, s[i]), z = b.shot ? RIM : posAt(p, b.pass, s[i] + beatDur(b));
+      h += `<line x1="${a[0]}" y1="${a[1]}" x2="${z[0]}" y2="${z[1]}" stroke="#1f2937" stroke-width=".3" stroke-dasharray=".9 .7" opacity="${op}" marker-end="url(#ah-o)"/>`;
+    }
+  });
+  // traps
+  if (bi >= 0) {
+    const b = p.beats[bi], f = (t - s[bi]) / beatDur(b);
+    if (b.trap && f > 0.55) { const c = posAt(p, b.trap.on, t); h += `<circle cx="${c[0]}" cy="${c[1]}" r="3.6" fill="#ef4444" fill-opacity=".22" stroke="#ef4444" stroke-width=".35" stroke-dasharray="1 .6"/>`; }
+  }
+  // players: offense blue, defense red (the side you're teaching is solid)
+  const ids = Object.keys(p.at);
+  for (const id of ids.filter((x) => x[0] === "O")) {
+    const [x, y] = posAt(p, id, t), solid = !isD;
+    h += `<g><circle cx="${x}" cy="${y}" r="1.45" fill="${solid ? "#1d4ed8" : "#e8eefc"}" stroke="${solid ? "#fff" : "#1d4ed8"}" stroke-width=".3"/><text x="${x}" y="${y + 0.55}" text-anchor="middle" font-size="1.55" font-weight="900" fill="${solid ? "#fff" : "#1d4ed8"}">${id.slice(1)}</text></g>`;
+  }
+  for (const id of ids.filter((x) => x[0] === "X")) {
+    const [x, y] = posAt(p, id, t);
+    h += `<g><circle cx="${x}" cy="${y}" r="1.45" fill="#b91c1c" stroke="#fff" stroke-width=".3"/><text x="${x}" y="${y + 0.5}" text-anchor="middle" font-size="1.25" font-weight="900" fill="#fff">X${id.slice(1)}</text></g>`;
+  }
+  // ball
+  const ball = ballAt(p, t);
+  if (ball) {
+    const bounce = ball.dribbling ? Math.abs(Math.sin(t * 9)) * 0.25 : 0, r = 0.68 * (1 + (ball.lift || 0) * 0.55) - bounce * 0.4;
+    if (ball.flying) h += `<ellipse cx="${ball.xy[0]}" cy="${ball.xy[1] + 0.4}" rx=".6" ry=".3" fill="#000" opacity=".25"/>`;
+    h += `<g transform="translate(${ball.xy[0]} ${ball.xy[1] - (ball.lift || 0) * 1.6})"><circle r="${r}" fill="#f97316" stroke="#7c2d12" stroke-width=".14"/><path d="M${-r} 0 H${r} M0 ${-r} V${r}" stroke="#7c2d12" stroke-width=".1"/></g>`;
+  }
+  // big word at the end of a step (TRAP! STEAL! SCORE! SWITCH!)
+  if (bi >= 0) {
+    let lab = null;
+    for (let i = bi; i >= 0 && !lab; i--) { const b = p.beats[i], f = (t - s[i]) / beatDur(b); if (b.label && f > 0.6 && (i === bi || i === p.beats.length - 1)) lab = b.label; }
+    if (lab) h += `<text x="0" y="42.5" text-anchor="middle" font-size="4.2" font-weight="900" fill="#fff" stroke="#111827" stroke-width=".35" paint-order="stroke" letter-spacing=".3">${lab}</text>`;
+  }
+  svg.innerHTML = h;
+  // step caption + scrub
+  const now = $("#stepnow"); now.hidden = bi < 0 || !p.beats[bi];
+  if (bi >= 0) now.innerHTML = `<b>${bi + 1}.</b> ${esc(p.beats[bi].say)}`;
+  $("#scrub").value = String(Math.round((t / duration(p)) * 1000));
+  $("#time").textContent = `${t.toFixed(1)}s / ${duration(p).toFixed(1)}s`;
+  $("#ov-play").hidden = state.playing || t > 0.01;
+  document.querySelectorAll("#steps [data-step]").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.step === bi)));
+}
+
+// ---------------------------------------------------------------- state + UI
+const state = { side: store.get("hoops.side", "O"), pkg: store.get("hoops.pkg", null), playId: store.get("hoops.play", null), t: 0, playing: false, rate: 1 };
+const cur = () => PLAYS.find((p) => p.id === state.playId) || null;
+const listPlays = () => PLAYS.filter((p) => p.side === state.side && (!state.pkg || p.pkg === state.pkg));
+const pkgName = (p) => Object.values(PKGS).flat().find((k) => k.id === p.pkg)?.name || "";
+function renderSide() {
+  document.querySelectorAll("#side button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === state.side)));
+  if (state.pkg && !PKGS[state.side].some((k) => k.id === state.pkg)) state.pkg = null;
+  $("#pkgs").innerHTML = [`<button class="chip" data-pk="" aria-pressed="${!state.pkg}">All</button>`, ...PKGS[state.side].map((k) => `<button class="chip" data-pk="${k.id}" aria-pressed="${state.pkg === k.id}">${esc(k.name)}</button>`)].join("");
+  $("#plays").innerHTML = listPlays().map((p, i) => `<button class="item" data-p="${p.id}" aria-current="${p.id === state.playId}"><span class="n">${i + 1}</span><span style="flex:1">${esc(p.name)}</span><span class="tag ${p.side}">${esc(pkgName(p))}</span></button>`).join("");
+}
+function renderPlay() {
+  const p = cur();
+  $("#title").textContent = p ? p.name : "Pick a play";
+  $("#tags").innerHTML = p ? `<span class="tag ${p.side}">${p.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(pkgName(p))}</span>` : "";
+  $("#details").innerHTML = p ? `<div class="box"><h3>Step by step</h3><ol class="steps" id="steps">${p.beats.map((b, i) => `<li><button data-step="${i}"><i>${i + 1}</i><span>${esc(b.say)}</span></button></li>`).join("")}</ol></div>
+    <div class="box"><h3>Coaching points</h3><p style="margin:0">${esc(p.notes)}</p>
+      <p class="key" style="margin-top:10px"><span>${keySvg("cut")} Cut</span><span>${keySvg("drib")} Dribble</span><span>${keySvg("pass")} Pass</span><span>${keySvg("screen")} Screen</span><span>${keySvg("slide")} Defense moves</span></p></div>`
+    : `<div class="box"><h3>Get started</h3><p style="margin:0">Pick Offense or Defense, then a play. Hit ▶ to run it, or tap the court to play / pause.</p></div>`;
+  draw();
+}
+function keySvg(k) {
+  const w = 34, line = { cut: `<path d="M2 8 H28" stroke="#9aa4b5" stroke-width="2"/><path d="M26 4 L32 8 L26 12" fill="#9aa4b5"/>`, drib: `<path d="M2 8 L6 4 L10 12 L14 4 L18 12 L22 4 L26 8" fill="none" stroke="#9aa4b5" stroke-width="2"/><path d="M26 4 L32 8 L26 12" fill="#9aa4b5"/>`,
+    pass: `<path d="M2 8 H28" stroke="#9aa4b5" stroke-width="2" stroke-dasharray="4 3"/><path d="M26 4 L32 8 L26 12" fill="#9aa4b5"/>`, screen: `<path d="M2 8 H30 M30 2 V14" stroke="#9aa4b5" stroke-width="2.4"/>`,
+    slide: `<path d="M2 8 H28" stroke="#ef4444" stroke-width="2"/><path d="M26 4 L32 8 L26 12" fill="#ef4444"/>` }[k];
+  return `<svg width="${w}" height="16" viewBox="0 0 34 16" aria-hidden="true">${line}</svg>`;
+}
+function openPlay(id) { setPlaying(false); state.playId = id; state.t = 0; store.set("hoops.play", id); renderSide(); renderPlay(); }
+function setT(t) { const p = cur(); if (!p) return; state.t = clamp(t, 0, duration(p)); draw(); }
+let last = 0;
+function tick(ts) {
+  if (!state.playing) return;
+  const p = cur(); if (!p) return;
+  const dt = last ? (ts - last) / 1000 : 0; last = ts;
+  if (state.t >= duration(p)) { setPlaying(false); return; }
+  setT(state.t + dt * state.rate); requestAnimationFrame(tick);
+}
+function setPlaying(on) {
+  const p = cur(); if (on && !p) return;
+  state.playing = on;
+  $("#btn-play").textContent = on ? "❚❚" : "▶"; $("#btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
+  if (on) { if (state.t >= duration(p) - 0.01) state.t = 0; last = 0; requestAnimationFrame(tick); }
+  draw();
+}
+function stepPlay(d) { const l = listPlays(), i = l.findIndex((p) => p.id === state.playId), n = l[i + d]; if (n) openPlay(n.id); }
+const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; scrollTo({ top: $(".stage").getBoundingClientRect().top + scrollY - $("header").offsetHeight - 8, behavior: "smooth" }); };
+
+$("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.side = b.dataset.v; state.pkg = null; store.set("hoops.side", state.side); store.set("hoops.pkg", null); renderSide(); };
+$("#pkgs").onclick = (e) => { const b = e.target.closest("[data-pk]"); if (!b) return; state.pkg = b.dataset.pk || null; store.set("hoops.pkg", state.pkg); renderSide(); };
+$("#plays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; openPlay(b.dataset.p); toStage(); };
+$("#details").onclick = (e) => { const b = e.target.closest("[data-step]"); if (!b) return; const p = cur(); setPlaying(false); setT(starts(p)[+b.dataset.step] + 0.001); };
+$("#btn-play").onclick = () => setPlaying(!state.playing);
+$("#ov-play").onclick = () => setPlaying(true);
+$("#btn-rate").onclick = () => { state.rate = state.rate === 1 ? 0.5 : 1; $("#btn-rate").textContent = state.rate === 1 ? "1×" : "½×"; };
+$("#btn-restart").onclick = () => { setPlaying(false); setT(0); };
+$("#scrub").oninput = (e) => { const p = cur(); if (!p) return; setPlaying(false); setT((+e.target.value / 1000) * duration(p)); };
+$("#btn-prev").onclick = () => stepPlay(-1);
+$("#btn-next").onclick = () => stepPlay(1);
+
+// full screen + tap / swipe on the court
+const isFs = () => document.body.classList.contains("fs");
+function setFullscreen(on) {
+  if (on === isFs()) return;
+  document.body.classList.toggle("fs", on);
+  const el = document.documentElement, doc = document;
+  if (on) (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.catch?.(() => {});
+  else if (doc.fullscreenElement || doc.webkitFullscreenElement) (doc.exitFullscreen || doc.webkitExitFullscreen)?.call(doc)?.catch?.(() => {});
+  draw();
+}
+$("#btn-fs").onclick = () => setFullscreen(true);
+$("#btn-fsclose").onclick = () => setFullscreen(false);
+for (const ev of ["fullscreenchange", "webkitfullscreenchange"]) document.addEventListener(ev, () => { if (!document.fullscreenElement && !document.webkitFullscreenElement) setFullscreen(false); });
+let touch = null;
+$("#fieldwrap").addEventListener("pointerdown", (e) => { if (!e.target.closest("button")) touch = { x: e.clientX, y: e.clientY }; });
+$("#fieldwrap").addEventListener("pointerup", (e) => {
+  if (!touch) return; const dx = e.clientX - touch.x, dy = e.clientY - touch.y; touch = null;
+  if (isFs() && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPlay(dx < 0 ? 1 : -1);
+  else if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && cur()) setPlaying(!state.playing);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && isFs()) setFullscreen(false);
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!state.playing); }
+  if (e.key === "PageDown") stepPlay(1); if (e.key === "PageUp") stepPlay(-1);
+});
+
+if (!cur()) state.playId = listPlays()[0]?.id || null;
+else state.side = cur().side;
+renderSide(); renderPlay();
+</script>
+</body>
+</html>
