@@ -5,7 +5,10 @@
 // GET  /backups        -> [{ id, at, plays }]          newest first
 // GET  /backups/:id    -> { book, at }
 // Basketball has its own book (row 2) and its own backups table, so football and basketball never overwrite each other:
+// POST /hoops/import (a photo or description of a play -> Claude -> a play to animate; needs the ANTHROPIC_API_KEY secret)
 // GET /hoops/rev, GET /hoops, PUT /hoops (body { book, base }: 409 + the current book if someone saved since base), GET /hoops/backups, GET /hoops/backups/:id
+
+import { importPlay } from "./hoops-import.js";
 
 const ALLOWED = ["https://dcpeaks50.github.io", "http://localhost:8765", "null"];
 const MAX_BYTES = 3_000_000;
@@ -17,7 +20,7 @@ export default {
     const origin = req.headers.get("Origin") || "";
     const cors = {
       "Access-Control-Allow-Origin": ALLOWED.includes(origin) ? origin : ALLOWED[0],
-      "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
       "Vary": "Origin",
     };
@@ -25,6 +28,7 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "") || "/";
 
+    if (req.method === "POST" && path === "/hoops/import") return importPlay(req, env, json);
     if (path === "/hoops" || path.startsWith("/hoops/")) return hoops(req, env, url, path, json);
     if (req.method === "GET" && path === "/rev") {
       const row = await env.DB.prepare("SELECT rev, updated FROM playbook WHERE id = 1").first();

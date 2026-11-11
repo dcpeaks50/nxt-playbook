@@ -43,7 +43,7 @@ header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:
 .titlebar h1{margin:0;font-size:20px;flex:1;min-width:180px}
 .tag{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--line)}
 .tag.O{background:#1d4ed8;color:#fff}.tag.D{background:#b91c1c;color:#fff}
-.fieldwrap{position:relative;background:#7a4a24;display:flex;justify-content:center;touch-action:manipulation}
+.fieldwrap{position:relative;background:#e9dcc2;display:flex;justify-content:center;touch-action:manipulation}
 svg#court{display:block;width:100%;height:auto;max-height:74vh;user-select:none}
 .ov-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:84px;height:84px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:36px;padding-left:6px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.35)}
 .ov-fs{position:absolute;right:10px;bottom:10px;width:48px;height:48px;border-radius:12px;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center}
@@ -95,6 +95,19 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
 .row label{font-size:13px;color:var(--muted);min-width:70px}
 body.editing svg#court{touch-action:none}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0;width:min(560px,94vw)}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+.dlg-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dlg-h h2{margin:0;font-size:18px}
+.dlg-b{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.dlg-f{display:flex;gap:8px;justify-content:flex-end;padding:0 16px 16px}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;cursor:pointer;font-weight:700}
+.drop img{max-width:100%;max-height:220px;border-radius:8px}
+.drop small{font-weight:500;color:var(--muted)}
+.impmsg{margin:0;font-size:14px;font-weight:600}
+.impmsg.err{color:var(--danger)}
+.impmsg.busy::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -112,7 +125,7 @@ body.editing svg#court{touch-action:none}
       <div class="chips" id="pkgs"></div>
     </section>
     <section class="panel">
-      <h2>Plays <button class="btn sm primary" id="btn-new">+ New play</button></h2>
+      <h2>Plays <span style="display:flex;gap:6px"><button class="btn sm" id="btn-import" title="Turn a photo of a play (or a description) into an animated play">📷 Import</button><button class="btn sm primary" id="btn-new">+ New play</button></span></h2>
       <div class="list" id="plays"></div>
     </section>
   </aside>
@@ -131,7 +144,7 @@ body.editing svg#court{touch-action:none}
       <p class="ehint" id="ehint"></p>
     </div>
     <div class="fieldwrap" id="fieldwrap">
-      <svg id="court" viewBox="-26 -4 52 53.5" role="img" aria-label="Basketball half court with the play"></svg>
+      <svg id="court" viewBox="-28 -4 56 58" role="img" aria-label="Basketball half court with the play"></svg>
       <button class="ov-play" id="ov-play" aria-label="Play">▶</button>
       <button class="ov-fs" id="btn-fs" aria-label="Full screen" title="Full screen. Turn the tablet sideways to make it bigger.">⛶</button>
       <div class="stepnow" id="stepnow" hidden></div>
@@ -148,6 +161,16 @@ body.editing svg#court{touch-action:none}
     <div class="details" id="details"></div>
   </main>
 </div>
+<dialog id="impdlg" aria-labelledby="imp-h">
+  <div class="dlg-h"><h2 id="imp-h">Import a play</h2><button class="btn sm" id="imp-x" aria-label="Close">✕</button></div>
+  <div class="dlg-b">
+    <p class="ehint" style="font-size:14px">Snap a photo of a play (whiteboard, clipboard, a playbook page) or type it out. Claude puts it on the court and animates it. You can fix anything afterward with Edit.</p>
+    <label class="drop" id="imp-drop"><input type="file" id="imp-file" accept="image/*" hidden><span id="imp-pick">📷 Take or choose a photo</span><small id="imp-sub">Numbers for our players, X's for defenders</small><img id="imp-img" alt="" hidden></label>
+    <textarea id="imp-text" placeholder="And/or describe it: “5 out. 1 passes to 2 and cuts to the basket. 5 screens for 3, 3 curls to the elbow, 2 hits 3 for the shot.”" aria-label="Describe the play"></textarea>
+    <p class="impmsg" id="imp-msg" aria-live="polite"></p>
+  </div>
+  <div class="dlg-f"><button class="btn" id="imp-cancel">Cancel</button><button class="btn primary" id="imp-go">✨ Bring it to life</button></div>
+</dialog>
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
@@ -378,16 +401,18 @@ function beatIndex(p, t) { const s = starts(p); let i = -1; for (let k = 0; k < 
 // ---------------------------------------------------------------- drawing
 const COURT = (() => {
   const L = 'stroke="#fff" stroke-width="0.32" fill="none"';
-  return `<rect x="-26" y="-4" width="52" height="53.5" fill="#7a4a24"/>
-  <rect x="-25" y="0" width="50" height="47" fill="#d39a5c"/>
-  <g opacity=".13" stroke="#5a3214" stroke-width=".18">${Array.from({ length: 24 }, (_, i) => `<line x1="${-25 + i * 2.1}" y1="0" x2="${-25 + i * 2.1}" y2="47"/>`).join("")}</g>
-  <rect x="-6" y="0" width="12" height="19" fill="#b8692f" ${L}/>
+  const grain = (x0, x1, y0, y1, col, op) => `<g opacity="${op}" stroke="${col}" stroke-width=".16">${Array.from({ length: Math.ceil((x1 - x0) / 1.9) }, (_, i) => `<line x1="${x0 + i * 1.9}" y1="${y0}" x2="${x0 + i * 1.9}" y2="${y1}"/>`).join("")}</g>`;
+  return `<rect x="-28" y="-4" width="56" height="58" fill="#e9dcc2"/>${grain(-28, 28, -4, 54, "#a08458", 0.16)}
+  <rect x="-25" y="0" width="50" height="54" fill="#d6bc8f"/>${grain(-25, 25, 0, 54, "#7d5f36", 0.2)}
+  <path d="M-19.75 0 L-19.75 5.25 A19.75 19.75 0 0 0 19.75 5.25 L19.75 0 Z" fill="#1f4e9c"/>
+  <rect x="-6" y="0" width="12" height="19" fill="#111" ${L}/>
   <path d="M-6 19 A6 6 0 0 0 6 19" ${L}/><path d="M-6 19 A6 6 0 0 1 6 19" ${L} stroke-dasharray="1 .9"/>
   <path d="M-19.75 0 L-19.75 5.25 A19.75 19.75 0 0 0 19.75 5.25 L19.75 0" ${L}/>
   ${[7, 10, 13].map((y) => `<line x1="-6.9" y1="${y}" x2="-6" y2="${y}" ${L}/><line x1="6" y1="${y}" x2="6.9" y2="${y}" ${L}/>`).join("")}
   <path d="M-4 5.25 A4 4 0 0 0 4 5.25" ${L} opacity=".7"/>
-  <line x1="-25" y1="47" x2="25" y2="47" ${L}/><path d="M-6 47 A6 6 0 0 1 6 47" ${L}/>
-  <rect x="-25" y="0" width="50" height="47" ${L} stroke-width=".45"/>
+  <line x1="-25" y1="47" x2="25" y2="47" ${L}/><circle cx="0" cy="47" r="6" ${L}/>
+  <g stroke="#111" stroke-width="1.5" stroke-linecap="square"><line x1="-3.6" y1="43.4" x2="3.6" y2="50.6"/><line x1="3.6" y1="43.4" x2="-3.6" y2="50.6"/></g>
+  <path d="M-26 54 V-1 H26 V54 H25 V0 H-25 V54 Z" fill="#111"/>
   <line x1="-3" y1="4" x2="3" y2="4" stroke="#fff" stroke-width=".45"/>
   <line x1="0" y1="4" x2="0" y2="4.5" stroke="#f97316" stroke-width=".3"/>
   <circle cx="0" cy="5.25" r=".75" fill="none" stroke="#f97316" stroke-width=".3"/>`;
@@ -405,14 +430,15 @@ function zigzag(pts) {
 const dpath = (pts) => "M" + pts.map((q) => q[0].toFixed(2) + " " + q[1].toFixed(2)).join(" L");
 function moveMarkup(m, from, op) {
   const pts = [from, ...m.pts], end = pts[pts.length - 1], prev = pts[pts.length - 2];
-  const col = m.k === "slide" ? "#b91c1c" : "#1f2937", w = m.k === "slide" ? 0.3 : 0.36;
+  const col = m.k === "slide" ? "#dc2626" : "#fff", halo = m.k === "slide" ? "#fff" : "#111", w = m.k === "slide" ? 0.32 : 0.36;
   let d = m.k === "drib" ? dpath(zigzag(pts)) : dpath(pts), cap = "";
   if (m.k === "screen") {
     const ang = Math.atan2(end[1] - prev[1], end[0] - prev[0]), nx = -Math.sin(ang), ny = Math.cos(ang);
-    cap = `<line x1="${end[0] + nx * 1.4}" y1="${end[1] + ny * 1.4}" x2="${end[0] - nx * 1.4}" y2="${end[1] - ny * 1.4}" stroke="${col}" stroke-width=".55" stroke-linecap="round"/>`;
+    const bar = (c, sw) => `<line x1="${end[0] + nx * 1.4}" y1="${end[1] + ny * 1.4}" x2="${end[0] - nx * 1.4}" y2="${end[1] - ny * 1.4}" stroke="${c}" stroke-width="${sw}" stroke-linecap="round"/>`;
+    cap = bar(halo, 0.85) + bar(col, 0.55);
   }
   const marker = m.k === "screen" ? "" : ` marker-end="url(#${m.k === "slide" ? "ah-d" : "ah-o"})"`;
-  return `<g opacity="${op}"><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"${marker}/>${cap}</g>`;
+  return `<g opacity="${op}"><path d="${d}" fill="none" stroke="${halo}" stroke-width="${w + 0.3}" stroke-linejoin="round" stroke-linecap="round" opacity=".75"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"${marker}/>${cap}</g>`;
 }
 function draw() {
   const p = cur(), svg = $("#court");
@@ -421,8 +447,8 @@ function draw() {
   if (ed) state.t = ed.step < 0 ? 0 : s[ed.step] || 0;
   const t = state.t, bi = ed ? ed.step : state.t > 0 ? beatIndex(p, t) : -1, isD = p.side === "D";
   let h = `<defs>
-    <marker id="ah-o" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#1f2937"/></marker>
-    <marker id="ah-d" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#b91c1c"/></marker>
+    <marker id="ah-o" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#fff" stroke="#111" stroke-width="1.2"/></marker>
+    <marker id="ah-d" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626" stroke="#fff" stroke-width="1.2"/></marker>
   </defs>` + COURT;
   // the whole play drawn on the court; the step that's running is the darkest
   p.beats.forEach((b, i) => {
@@ -431,7 +457,7 @@ function draw() {
     if (b.pass || b.shot) {
       let from = p.ball; for (let k = 0; k < i; k++) if (p.beats[k].pass) from = p.beats[k].pass;
       const a = posAt(p, from, s[i]), z = b.shot ? RIM : posAt(p, b.pass, s[i] + beatDur(b));
-      h += `<line x1="${a[0]}" y1="${a[1]}" x2="${z[0]}" y2="${z[1]}" stroke="#1f2937" stroke-width=".3" stroke-dasharray=".9 .7" opacity="${op}" marker-end="url(#ah-o)"/>`;
+      h += `<g opacity="${op}"><line x1="${a[0]}" y1="${a[1]}" x2="${z[0]}" y2="${z[1]}" stroke="#111" stroke-width=".55" stroke-dasharray="1.1 .5" opacity=".75"/><line x1="${a[0]}" y1="${a[1]}" x2="${z[0]}" y2="${z[1]}" stroke="#fff" stroke-width=".3" stroke-dasharray=".9 .7" marker-end="url(#ah-o)"/></g>`;
     }
   });
   // traps
@@ -443,7 +469,7 @@ function draw() {
   const ids = Object.keys(p.at);
   for (const id of ids.filter((x) => x[0] === "O")) {
     const [x, y] = posAt(p, id, t), solid = !isD;
-    h += `<g><circle cx="${x}" cy="${y}" r="1.45" fill="${solid ? "#1d4ed8" : "#e8eefc"}" stroke="${solid ? "#fff" : "#1d4ed8"}" stroke-width=".3"/><text x="${x}" y="${y + 0.55}" text-anchor="middle" font-size="1.55" font-weight="900" fill="${solid ? "#fff" : "#1d4ed8"}">${id.slice(1)}</text></g>`;
+    h += `<g opacity="${solid ? 1 : 0.8}"><circle cx="${x}" cy="${y}" r="1.45" fill="#fff" stroke="#1e3a8a" stroke-width="${solid ? 0.4 : 0.25}"/><text x="${x}" y="${y + 0.55}" text-anchor="middle" font-size="1.55" font-weight="900" fill="#1e3a8a">${id.slice(1)}</text></g>`;
   }
   for (const id of ids.filter((x) => x[0] === "X")) {
     const [x, y] = posAt(p, id, t);
@@ -464,7 +490,7 @@ function draw() {
   if (bi >= 0 && !ed) {
     let lab = null;
     for (let i = bi; i >= 0 && !lab; i--) { const b = p.beats[i], f = (t - s[i]) / beatDur(b); if (b.label && f > 0.6 && (i === bi || i === p.beats.length - 1)) lab = b.label; }
-    if (lab) h += `<text x="0" y="42.5" text-anchor="middle" font-size="4.2" font-weight="900" fill="#fff" stroke="#111827" stroke-width=".35" paint-order="stroke" letter-spacing=".3">${lab}</text>`;
+    if (lab) h += `<text x="0" y="39" text-anchor="middle" font-size="4.2" font-weight="900" fill="#fff" stroke="#111827" stroke-width=".35" paint-order="stroke" letter-spacing=".3">${lab}</text>`;
   }
   svg.innerHTML = h;
   // step caption + scrub
@@ -796,6 +822,49 @@ async function poll() {
   try { const r = await (await fetch(API + "/hoops/rev", { cache: "no-store" })).json(); if (r.rev && r.rev !== sync.rev) { const d = await (await fetch(API + "/hoops", { cache: "no-store" })).json(); if (d.book) { book = d.book; sync.rev = d.rev; store.set("hoops.book", book); renderSide(); renderPlay(); } } } catch {}
 }
 setInterval(poll, 15000);
+
+// ---------------------------------------------------------------- import a play (photo or words -> Claude -> animated play)
+const imp = { image: null, busy: false };
+function impMsg(text, kind = "") { const el = $("#imp-msg"); el.textContent = text; el.className = "impmsg" + (kind ? " " + kind : ""); }
+$("#btn-import").onclick = () => {
+  if (state.edit) stopEdit();
+  imp.image = null; $("#imp-file").value = ""; $("#imp-img").hidden = true; $("#imp-pick").hidden = false; $("#imp-sub").hidden = false; $("#imp-text").value = ""; impMsg("");
+  $("#impdlg").showModal();
+};
+for (const id of ["#imp-x", "#imp-cancel"]) $(id).onclick = () => { if (!imp.busy) $("#impdlg").close(); };
+/** Shrink the photo before sending it (phones take huge pictures). */
+async function shrink(file) {
+  const bmp = await createImageBitmap(file), k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const url = c.toDataURL("image/jpeg", 0.85);
+  return { url, image: { media_type: "image/jpeg", data: url.split(",")[1] } };
+}
+$("#imp-file").onchange = async (e) => {
+  const f = e.target.files?.[0]; if (!f) return;
+  try { const r = await shrink(f); imp.image = r.image; $("#imp-img").src = r.url; $("#imp-img").hidden = false; $("#imp-pick").hidden = true; $("#imp-sub").hidden = true; impMsg(""); }
+  catch { impMsg("Couldn't open that picture. Try another one.", "err"); }
+};
+$("#imp-go").onclick = async () => {
+  const text = $("#imp-text").value.trim();
+  if (!imp.image && !text) { impMsg("Add a photo of the play or describe it.", "err"); return; }
+  imp.busy = true; $("#imp-go").disabled = true; $("#imp-cancel").disabled = true;
+  impMsg("Claude is reading your play… this takes about half a minute.", "busy");
+  try {
+    const r = await fetch(API + "/hoops/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: imp.image, text, side: state.side }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.play) throw new Error(d.error || (r.status === 404 ? "Import isn't switched on yet." : "Something went wrong. Try again."));
+    const p = d.play; p.id = "h_" + uid();
+    const pkgs = book.pkgs[p.side] || [];
+    p.pkg = pkgs.some((k) => k.id === state.pkg) ? state.pkg : pkgs[0]?.id || null;
+    book.plays.push(p); sync.dirty.add(p.id); save();
+    $("#impdlg").close();
+    state.side = p.side; store.set("hoops.side", p.side); if (p.pkg !== state.pkg) { state.pkg = p.pkg; store.set("hoops.pkg", p.pkg); }
+    openPlay(p.id); toStage();
+    setTimeout(() => setPlaying(true), 500); // bring it to life
+  } catch (err) { impMsg(err.message, "err"); }
+  imp.busy = false; $("#imp-go").disabled = false; $("#imp-cancel").disabled = false;
+};
 document.addEventListener("visibilitychange", poll);
 
 (async () => {

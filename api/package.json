@@ -1,0 +1,8 @@
+{
+  "name": "nxt-playbook-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0"
+  }
+}
