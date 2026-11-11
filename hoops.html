@@ -78,31 +78,57 @@ body.fs .controls .btn,body.fs .fsnav{background:transparent;color:#fff;border:1
 body.fs #btn-fsclose{display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#fff;border:1px solid #ffffff55;width:46px;height:46px;border-radius:23px}
 body:not(.fs) .fsnav{display:none}
 @media (orientation:landscape) and (max-height:520px){body.fs .controls{position:absolute;right:8px;bottom:8px;padding:0;gap:8px}body.fs .stepnow{right:330px}}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+textarea{width:100%;min-height:70px;resize:vertical}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:4px 9px;font-size:12px;border-radius:8px}
+.panel h2{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sync{font-size:12px;font-weight:700;color:var(--muted);margin-left:auto}
+.sync[data-tone="ok"]{color:var(--accent)}.sync[data-tone="warn"]{color:#f59e0b}
+.editbar{display:flex;flex-direction:column;gap:8px;padding:10px 14px;background:color-mix(in srgb,var(--gold) 14%,var(--panel));border-bottom:1px solid var(--line)}
+.erow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.erow .seg button{padding:6px 11px}
+#say{flex:1;min-width:200px}
+.ehint{font-size:13px;color:var(--muted);margin:0}
+.title-in{flex:1;min-width:180px;font-size:18px;font-weight:800}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
+.row label{font-size:13px;color:var(--muted);min-width:70px}
+body.editing svg#court{touch-action:none}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><b>NXT</b><span>Basketball</span></div>
   <nav class="seg" aria-label="Sport"><a href="index.html">🏈 Football</a><a href="hoops.html" aria-current="page">🏀 Basketball</a></nav>
+  <span class="sync" id="sync"></span>
 </header>
 <div class="app">
   <aside>
     <section class="panel">
       <h2>Side</h2>
       <div class="seg" id="side" role="group" aria-label="Offense or defense"><button data-v="O">Offense</button><button data-v="D">Defense</button></div>
-      <h2 style="margin-top:14px">Packages</h2>
+      <h2 style="margin-top:14px">Packages <button class="btn sm" id="btn-newpkg">+ New</button></h2>
       <div class="chips" id="pkgs"></div>
     </section>
     <section class="panel">
-      <h2>Plays</h2>
+      <h2>Plays <button class="btn sm primary" id="btn-new">+ New play</button></h2>
       <div class="list" id="plays"></div>
     </section>
   </aside>
   <main class="stage">
     <div class="titlebar">
       <h1 id="title">Pick a play</h1>
+      <input class="title-in" id="title-in" hidden aria-label="Play name">
       <span id="tags"></span>
+      <button class="btn" id="btn-edit" hidden>Edit</button>
       <button id="btn-fsclose" aria-label="Close full screen">✕</button>
+    </div>
+    <div class="editbar" id="editbar" hidden>
+      <div class="erow"><div class="seg" id="stepbar" role="group" aria-label="Steps"></div><button class="btn sm" id="btn-addstep">+ Step</button><span style="flex:1"></span><button class="btn sm" id="btn-undo" disabled>↶ Undo</button><button class="btn sm primary" id="btn-done">Done</button></div>
+      <div class="erow" id="toolrow"></div>
+      <div class="erow" id="sayrow"><input id="say" placeholder="What happens in this step (shows on the court)" aria-label="What happens in this step"></div>
+      <p class="ehint" id="ehint"></p>
     </div>
     <div class="fieldwrap" id="fieldwrap">
       <svg id="court" viewBox="-26 -4 52 53.5" role="img" aria-label="Basketball half court with the play"></svg>
@@ -133,7 +159,7 @@ const RIM = [0, 5.25];
 // moves: cut (solid arrow), drib (zig-zag), screen (ends in a bar), slide (defense, red)
 const cut = (...pts) => ({ k: "cut", pts }), drib = (...pts) => ({ k: "drib", pts }), scr = (...pts) => ({ k: "screen", pts }), sl = (...pts) => ({ k: "slide", pts });
 
-const PKGS = {
+const DEFAULT_PKGS = {
   O: [{ id: "mo", name: "Man offense" }, { id: "zo", name: "Zone offense" }, { id: "in", name: "Inbounds" }],
   D: [{ id: "man", name: "Man" }, { id: "zone", name: "1-2-2 Trap" }],
 };
@@ -141,7 +167,7 @@ const PKGS = {
 // 4 out, 1 in
 const FOUR_OUT = { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [-21, 4], O5: [6, 8] };
 
-const PLAYS = [
+const DEFAULT_PLAYS = [
   // ------------------------------------------------ Man offense
   { id: "giveandgo", name: "Give & Go", side: "O", pkg: "mo", ball: "O1",
     at: { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [21, 4], O5: [-6, 8] },
@@ -297,11 +323,14 @@ const PLAYS = [
     ] },
 ];
 
+let book = { version: 1, pkgs: structuredClone(DEFAULT_PKGS), plays: structuredClone(DEFAULT_PLAYS) };
+
 // ---------------------------------------------------------------- timing
 const BEAT = 1.35, HOLD = 0.7;
-const beatDur = (b) => b.dur || BEAT;
-function starts(p) { const s = []; let t = 0; for (const b of p.beats) { s.push(t); t += beatDur(b); } return s; }
-const duration = (p) => p.beats.reduce((a, b) => a + beatDur(b), 0) + HOLD;
+let BEAT_NOW = BEAT;
+const beatDur = (b) => b.dur || BEAT_NOW;
+function starts(p) { BEAT_NOW = p.beat || BEAT; const s = []; let t = 0; for (const b of p.beats) { s.push(t); t += beatDur(b); } return s; }
+const duration = (p) => (BEAT_NOW = p.beat || BEAT, 0) + p.beats.reduce((a, b) => a + beatDur(b), 0) + HOLD;
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const ease = (f) => (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2);
 const lerp = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
@@ -388,14 +417,16 @@ function moveMarkup(m, from, op) {
 function draw() {
   const p = cur(), svg = $("#court");
   if (!p) { svg.innerHTML = COURT; return; }
-  const t = state.t, s = starts(p), bi = state.t > 0 ? beatIndex(p, t) : -1, isD = p.side === "D";
+  const ed = state.edit, s = starts(p);
+  if (ed) state.t = ed.step < 0 ? 0 : s[ed.step] || 0;
+  const t = state.t, bi = ed ? ed.step : state.t > 0 ? beatIndex(p, t) : -1, isD = p.side === "D";
   let h = `<defs>
     <marker id="ah-o" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#1f2937"/></marker>
     <marker id="ah-d" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#b91c1c"/></marker>
   </defs>` + COURT;
   // the whole play drawn on the court; the step that's running is the darkest
   p.beats.forEach((b, i) => {
-    const op = bi < 0 ? 0.85 : i === bi ? 1 : i < bi ? 0.3 : 0.5;
+    const op = ed ? (ed.step < 0 ? 0.45 : i === bi ? 1 : 0.22) : bi < 0 ? 0.85 : i === bi ? 1 : i < bi ? 0.3 : 0.5;
     for (const [id, m] of Object.entries(b.m || {})) h += moveMarkup(m, posAt(p, id, s[i]), op);
     if (b.pass || b.shot) {
       let from = p.ball; for (let k = 0; k < i; k++) if (p.beats[k].pass) from = p.beats[k].pass;
@@ -406,7 +437,7 @@ function draw() {
   // traps
   if (bi >= 0) {
     const b = p.beats[bi], f = (t - s[bi]) / beatDur(b);
-    if (b.trap && f > 0.55) { const c = posAt(p, b.trap.on, t); h += `<circle cx="${c[0]}" cy="${c[1]}" r="3.6" fill="#ef4444" fill-opacity=".22" stroke="#ef4444" stroke-width=".35" stroke-dasharray="1 .6"/>`; }
+    if (b.trap && (f > 0.55 || ed)) { const c = posAt(p, b.trap.on, t); h += `<circle cx="${c[0]}" cy="${c[1]}" r="3.6" fill="#ef4444" fill-opacity=".22" stroke="#ef4444" stroke-width=".35" stroke-dasharray="1 .6"/>`; }
   }
   // players: offense blue, defense red (the side you're teaching is solid)
   const ids = Object.keys(p.at);
@@ -418,6 +449,10 @@ function draw() {
     const [x, y] = posAt(p, id, t);
     h += `<g><circle cx="${x}" cy="${y}" r="1.45" fill="#b91c1c" stroke="#fff" stroke-width=".3"/><text x="${x}" y="${y + 0.5}" text-anchor="middle" font-size="1.25" font-weight="900" fill="#fff">X${id.slice(1)}</text></g>`;
   }
+  // editing: the picked player, the line being dragged
+  if (ed?.sel && p.at[ed.sel]) { const [x, y] = posAt(p, ed.sel, t); h += `<circle cx="${x}" cy="${y}" r="2.2" fill="none" stroke="#facc15" stroke-width=".4"/>`; }
+  if (ed && bi >= 0) for (const id of p.beats[bi]?.trap?.by || []) { const [x, y] = posAt(p, id, t); h += `<circle cx="${x}" cy="${y}" r="1.95" fill="none" stroke="#ef4444" stroke-width=".3" stroke-dasharray=".6 .4"/>`; }
+  if (drag?.moved) h += `<path d="${dpath(drag.trail)}" fill="none" stroke="#facc15" stroke-width=".4" stroke-dasharray="1 .6"/><circle cx="${drag.cur[0]}" cy="${drag.cur[1]}" r="1.45" fill="#facc15" opacity=".55"/>`;
   // ball
   const ball = ballAt(p, t);
   if (ball) {
@@ -426,35 +461,49 @@ function draw() {
     h += `<g transform="translate(${ball.xy[0]} ${ball.xy[1] - (ball.lift || 0) * 1.6})"><circle r="${r}" fill="#f97316" stroke="#7c2d12" stroke-width=".14"/><path d="M${-r} 0 H${r} M0 ${-r} V${r}" stroke="#7c2d12" stroke-width=".1"/></g>`;
   }
   // big word at the end of a step (TRAP! STEAL! SCORE! SWITCH!)
-  if (bi >= 0) {
+  if (bi >= 0 && !ed) {
     let lab = null;
     for (let i = bi; i >= 0 && !lab; i--) { const b = p.beats[i], f = (t - s[i]) / beatDur(b); if (b.label && f > 0.6 && (i === bi || i === p.beats.length - 1)) lab = b.label; }
     if (lab) h += `<text x="0" y="42.5" text-anchor="middle" font-size="4.2" font-weight="900" fill="#fff" stroke="#111827" stroke-width=".35" paint-order="stroke" letter-spacing=".3">${lab}</text>`;
   }
   svg.innerHTML = h;
   // step caption + scrub
-  const now = $("#stepnow"); now.hidden = bi < 0 || !p.beats[bi];
+  const now = $("#stepnow"); now.hidden = !!ed || bi < 0 || !p.beats[bi];
   if (bi >= 0) now.innerHTML = `<b>${bi + 1}.</b> ${esc(p.beats[bi].say)}`;
   $("#scrub").value = String(Math.round((t / duration(p)) * 1000));
   $("#time").textContent = `${t.toFixed(1)}s / ${duration(p).toFixed(1)}s`;
-  $("#ov-play").hidden = state.playing || t > 0.01;
+  $("#ov-play").hidden = !!ed || state.playing || t > 0.01;
+  $("#btn-fs").hidden = !!ed;
   document.querySelectorAll("#steps [data-step]").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.step === bi)));
 }
 
 // ---------------------------------------------------------------- state + UI
 const state = { side: store.get("hoops.side", "O"), pkg: store.get("hoops.pkg", null), playId: store.get("hoops.play", null), t: 0, playing: false, rate: 1 };
-const cur = () => PLAYS.find((p) => p.id === state.playId) || null;
-const listPlays = () => PLAYS.filter((p) => p.side === state.side && (!state.pkg || p.pkg === state.pkg));
-const pkgName = (p) => Object.values(PKGS).flat().find((k) => k.id === p.pkg)?.name || "";
+const cur = () => book.plays.find((p) => p.id === state.playId) || null;
+const listPlays = () => book.plays.filter((p) => p.side === state.side && (!state.pkg || p.pkg === state.pkg));
+const pkgName = (p) => Object.values(book.pkgs).flat().find((k) => k.id === p.pkg)?.name || "";
 function renderSide() {
   document.querySelectorAll("#side button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === state.side)));
-  if (state.pkg && !PKGS[state.side].some((k) => k.id === state.pkg)) state.pkg = null;
-  $("#pkgs").innerHTML = [`<button class="chip" data-pk="" aria-pressed="${!state.pkg}">All</button>`, ...PKGS[state.side].map((k) => `<button class="chip" data-pk="${k.id}" aria-pressed="${state.pkg === k.id}">${esc(k.name)}</button>`)].join("");
+  if (state.pkg && !book.pkgs[state.side].some((k) => k.id === state.pkg)) state.pkg = null;
+  $("#pkgs").innerHTML = [`<button class="chip" data-pk="" aria-pressed="${!state.pkg}">All</button>`, ...book.pkgs[state.side].map((k) => `<button class="chip" data-pk="${k.id}" aria-pressed="${state.pkg === k.id}">${esc(k.name)}</button>`)].join("");
   $("#plays").innerHTML = listPlays().map((p, i) => `<button class="item" data-p="${p.id}" aria-current="${p.id === state.playId}"><span class="n">${i + 1}</span><span style="flex:1">${esc(p.name)}</span><span class="tag ${p.side}">${esc(pkgName(p))}</span></button>`).join("");
 }
 function renderPlay() {
-  const p = cur();
+  const p = cur(), ed = state.edit;
   $("#title").textContent = p ? p.name : "Pick a play";
+  $("#title").hidden = !!(ed && p); $("#title-in").hidden = !(ed && p); if (ed && p && document.activeElement !== $("#title-in")) $("#title-in").value = p.name;
+  $("#btn-edit").hidden = !p || !!ed;
+  document.body.classList.toggle("editing", !!ed);
+  $("#editbar").hidden = !ed; if (ed) renderEditbar();
+  if (ed && p) {
+    $("#tags").innerHTML = "";
+    $("#details").innerHTML = `<div class="box"><h3>Play</h3>
+      <div class="row"><label>Package</label><select id="e-pkg">${book.pkgs[p.side].map((k) => `<option value="${k.id}" ${k.id === p.pkg ? "selected" : ""}>${esc(k.name)}</option>`).join("")}</select></div>
+      <div class="row"><label>Speed</label><select id="e-speed">${[["1.8", "Slow"], ["1.35", "Normal"], ["1", "Fast"]].map(([v, n]) => `<option value="${v}" ${String(p.beat || 1.35) === v ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      <div class="row"><button class="btn sm" id="e-dup">Duplicate play</button><button class="btn sm danger" id="e-del">Delete play</button></div></div>
+      <div class="box"><h3>Coaching points</h3><textarea id="e-notes" placeholder="What each kid needs to know">${esc(p.notes)}</textarea></div>`;
+    draw(); return;
+  }
   $("#tags").innerHTML = p ? `<span class="tag ${p.side}">${p.side === "O" ? "Offense" : "Defense"}</span> <span class="tag">${esc(pkgName(p))}</span>` : "";
   $("#details").innerHTML = p ? `<div class="box"><h3>Step by step</h3><ol class="steps" id="steps">${p.beats.map((b, i) => `<li><button data-step="${i}"><i>${i + 1}</i><span>${esc(b.say)}</span></button></li>`).join("")}</ol></div>
     <div class="box"><h3>Coaching points</h3><p style="margin:0">${esc(p.notes)}</p>
@@ -488,9 +537,9 @@ function setPlaying(on) {
 function stepPlay(d) { const l = listPlays(), i = l.findIndex((p) => p.id === state.playId), n = l[i + d]; if (n) openPlay(n.id); }
 const toStage = () => { if (!matchMedia("(max-width:900px)").matches) return; scrollTo({ top: $(".stage").getBoundingClientRect().top + scrollY - $("header").offsetHeight - 8, behavior: "smooth" }); };
 
-$("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.side = b.dataset.v; state.pkg = null; store.set("hoops.side", state.side); store.set("hoops.pkg", null); renderSide(); };
+$("#side").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; if (state.edit) stopEdit(); state.side = b.dataset.v; state.pkg = null; store.set("hoops.side", state.side); store.set("hoops.pkg", null); renderSide(); };
 $("#pkgs").onclick = (e) => { const b = e.target.closest("[data-pk]"); if (!b) return; state.pkg = b.dataset.pk || null; store.set("hoops.pkg", state.pkg); renderSide(); };
-$("#plays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; openPlay(b.dataset.p); toStage(); };
+$("#plays").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; if (state.edit) stopEdit(); openPlay(b.dataset.p); toStage(); };
 $("#details").onclick = (e) => { const b = e.target.closest("[data-step]"); if (!b) return; const p = cur(); setPlaying(false); setT(starts(p)[+b.dataset.step] + 0.001); };
 $("#btn-play").onclick = () => setPlaying(!state.playing);
 $("#ov-play").onclick = () => setPlaying(true);
@@ -513,8 +562,8 @@ function setFullscreen(on) {
 $("#btn-fs").onclick = () => setFullscreen(true);
 $("#btn-fsclose").onclick = () => setFullscreen(false);
 for (const ev of ["fullscreenchange", "webkitfullscreenchange"]) document.addEventListener(ev, () => { if (!document.fullscreenElement && !document.webkitFullscreenElement) setFullscreen(false); });
-let touch = null;
-$("#fieldwrap").addEventListener("pointerdown", (e) => { if (!e.target.closest("button")) touch = { x: e.clientX, y: e.clientY }; });
+let touch = null, drag = null;
+$("#fieldwrap").addEventListener("pointerdown", (e) => { if (!state.edit && !e.target.closest("button")) touch = { x: e.clientX, y: e.clientY }; });
 $("#fieldwrap").addEventListener("pointerup", (e) => {
   if (!touch) return; const dx = e.clientX - touch.x, dy = e.clientY - touch.y; touch = null;
   if (isFs() && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPlay(dx < 0 ? 1 : -1);
@@ -526,9 +575,237 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "PageDown") stepPlay(1); if (e.key === "PageUp") stepPlay(-1);
 });
 
-if (!cur()) state.playId = listPlays()[0]?.id || null;
-else state.side = cur().side;
-renderSide(); renderPlay();
+// ---------------------------------------------------------------- make your own plays
+// Edit a play step by step. "Start" = where everyone lines up and who has the ball.
+// In a step: drag a player to where he goes (Move / Dribble / Screen), tap who gets the ball (Pass), tap the shooter (Shoot),
+// tap two defenders to trap the ball (Trap). Everything saves for everyone with the link.
+const uid = () => Math.random().toString(36).slice(2, 9);
+const TOOLS = [["cut", "Move"], ["drib", "Dribble"], ["screen", "Screen"], ["pass", "Pass"], ["shoot", "Shoot"], ["trap", "Trap"]];
+const HINTS = {
+  start: "Drag players to where they line up. Tap a player, then “Give him the ball”.",
+  cut: "Drag a player to where he cuts. Drag in a curve to bend the line.",
+  drib: "Drag the player with the ball to where he dribbles.",
+  screen: "Drag a player to where he sets the screen (the line ends in a bar).",
+  pass: "Tap the player who gets the pass. Tap him again to take it back. Pass to a defender = a steal.",
+  shoot: "Tap the player with the ball to shoot.",
+  trap: "Tap two defenders to trap whoever has the ball.",
+};
+const FIVE_OUT = { O1: [0, 27], O2: [16, 21], O3: [-16, 21], O4: [20, 5], O5: [-20, 5] };
+const clampCourt = ([x, y]) => [Math.round(clamp(x, -25, 25) * 2) / 2, Math.round(clamp(y, -3, 48) * 2) / 2];
+const holderAt = (p, i) => { let h = p.ball; for (let k = 0; k < i; k++) { const b = p.beats[k]; if (b.shot) h = null; else if (b.pass) h = b.pass; } return h; };
+function guardSpots(at) {
+  const out = {};
+  for (const [id, xy] of Object.entries(at)) if (id[0] === "O") { const dx = RIM[0] - xy[0], dy = RIM[1] - xy[1], d = Math.hypot(dx, dy) || 1; out["X" + id.slice(1)] = clampCourt([xy[0] + (dx / d) * 2.6, xy[1] + (dy / d) * 2.6]); }
+  return out;
+}
+function autoLabel(b) {
+  if (b.label && !["SCORE!", "TRAP!", "STEAL!"].includes(b.label)) return;
+  const l = b.shot ? "SCORE!" : b.pass && b.pass[0] === "X" ? "STEAL!" : b.trap?.by?.length ? "TRAP!" : null;
+  if (l) b.label = l; else delete b.label;
+}
+function pushUndo() { const p = cur(); state.edit.undo.push(JSON.stringify(p)); if (state.edit.undo.length > 60) state.edit.undo.shift(); }
+function changed(p = cur(), full = true) { if (!p) return; sync.dirty.add(p.id); save(); if (full) { renderSide(); renderPlay(); } else draw(); }
+
+function startEdit(step = 0) { const p = cur(); if (!p) return; setPlaying(false); state.edit = { step: Math.min(step, p.beats.length - 1), tool: "cut", sel: null, undo: [] }; renderPlay(); }
+function stopEdit() { state.edit = null; drag = null; state.t = 0; renderSide(); renderPlay(); }
+function renderEditbar() {
+  const p = cur(), ed = state.edit; if (!p) return;
+  $("#stepbar").innerHTML = [`<button data-step="-1" aria-pressed="${ed.step < 0}">Start</button>`, ...p.beats.map((b, i) => `<button data-step="${i}" aria-pressed="${ed.step === i}">${i + 1}</button>`)].join("");
+  const start = ed.step < 0, b = p.beats[ed.step];
+  if (start) {
+    const hasD = Object.keys(p.at).some((k) => k[0] === "X");
+    $("#toolrow").innerHTML = `<button class="btn sm" id="e-ball" ${ed.sel && ed.sel[0] === "O" ? "" : "disabled"}>🏀 Give him the ball</button>
+      <button class="btn sm" id="e-def">${hasD ? "− Take defense off" : "+ Put defense on"}</button>`;
+  } else {
+    const tools = TOOLS.filter(([k]) => k !== "trap" || Object.keys(p.at).some((x) => x[0] === "X"));
+    $("#toolrow").innerHTML = `<div class="seg" id="tools" role="group" aria-label="Tool">${tools.map(([k, n]) => `<button data-tool="${k}" aria-pressed="${ed.tool === k}">${n}</button>`).join("")}</div>
+      ${b?.pass ? `<label class="ehint"><input type="checkbox" id="e-lob" ${b.lob ? "checked" : ""}> Lob / skip pass</label>` : ""}
+      ${ed.sel && b?.m?.[ed.sel] ? `<button class="btn sm" id="e-unmove">Take away ${ed.sel[0] === "X" ? ed.sel : ed.sel.slice(1)}'s move</button>` : ""}
+      <span style="flex:1"></span>
+      <button class="btn sm" id="e-clear">Clear step</button>
+      <button class="btn sm danger" id="e-delstep" ${p.beats.length > 1 ? "" : "disabled"}>Delete step</button>`;
+  }
+  $("#sayrow").hidden = start;
+  if (!start && document.activeElement !== $("#say")) $("#say").value = b?.say || "";
+  $("#ehint").textContent = start ? HINTS.start : HINTS[ed.tool];
+  $("#btn-undo").disabled = !ed.undo.length;
+}
+$("#btn-edit").onclick = () => startEdit(0);
+$("#btn-done").onclick = () => stopEdit();
+$("#btn-undo").onclick = () => { const p = cur(), ed = state.edit; if (!p || !ed?.undo.length) return; const old = JSON.parse(ed.undo.pop()); book.plays[book.plays.indexOf(p)] = old; ed.step = Math.min(ed.step, old.beats.length - 1); changed(old); };
+$("#stepbar").onclick = (e) => { const b = e.target.closest("[data-step]"); if (!b) return; state.edit.step = +b.dataset.step; state.edit.sel = null; renderPlay(); };
+$("#btn-addstep").onclick = () => { const p = cur(); pushUndo(); p.beats.push({ say: "", m: {} }); state.edit.step = p.beats.length - 1; state.edit.sel = null; if (state.edit.tool === "shoot") state.edit.tool = "cut"; changed(p); };
+$("#toolrow").onclick = (e) => {
+  const p = cur(), ed = state.edit, b = p.beats[ed.step];
+  const t = e.target.closest("[data-tool]"); if (t) { ed.tool = t.dataset.tool; renderEditbar(); return; }
+  const id = e.target.closest("button")?.id;
+  if (id === "e-ball" && ed.sel) { pushUndo(); p.ball = ed.sel; changed(p); }
+  if (id === "e-def") {
+    pushUndo();
+    if (Object.keys(p.at).some((k) => k[0] === "X")) {
+      for (const k of Object.keys(p.at)) if (k[0] === "X") delete p.at[k];
+      for (const bb of p.beats) { for (const k of Object.keys(bb.m || {})) if (k[0] === "X") delete bb.m[k]; if (bb.pass?.[0] === "X") delete bb.pass; delete bb.trap; autoLabel(bb); }
+    } else Object.assign(p.at, guardSpots(p.at));
+    changed(p);
+  }
+  if (id === "e-unmove" && b) { pushUndo(); delete b.m[ed.sel]; changed(p); }
+  if (id === "e-clear" && b) { pushUndo(); b.m = {}; delete b.pass; delete b.shot; delete b.trap; delete b.lob; autoLabel(b); changed(p); }
+  if (id === "e-delstep" && p.beats.length > 1 && confirm(`Delete step ${ed.step + 1}?`)) { pushUndo(); p.beats.splice(ed.step, 1); ed.step = Math.min(ed.step, p.beats.length - 1); changed(p); }
+};
+$("#toolrow").onchange = (e) => { if (e.target.id === "e-lob") { const p = cur(), b = p.beats[state.edit.step]; pushUndo(); if (e.target.checked) b.lob = true; else delete b.lob; changed(p, false); } };
+$("#say").oninput = (e) => { const p = cur(), b = p?.beats[state.edit?.step]; if (!b) return; b.say = e.target.value; changed(p, false); };
+$("#title-in").oninput = (e) => { const p = cur(); if (!p) return; p.name = e.target.value; changed(p, false); renderSide(); };
+$("#details").addEventListener("input", (e) => { const p = cur(); if (!p || !state.edit) return; if (e.target.id === "e-notes") { p.notes = e.target.value; changed(p, false); } });
+$("#details").addEventListener("change", (e) => {
+  const p = cur(); if (!p || !state.edit) return;
+  if (e.target.id === "e-pkg") { p.pkg = e.target.value; changed(p); }
+  if (e.target.id === "e-speed") { p.beat = +e.target.value; if (p.beat === BEAT) delete p.beat; changed(p); }
+});
+$("#details").addEventListener("click", (e) => {
+  const p = cur(); if (!p || !state.edit) return;
+  if (e.target.id === "e-dup") { const np = { ...structuredClone(p), id: "h_" + uid(), name: p.name + " copy" }; book.plays.splice(book.plays.indexOf(p) + 1, 0, np); state.playId = np.id; state.edit.undo = []; changed(np); }
+  if (e.target.id === "e-del" && confirm(`Delete “${p.name}”?`)) { book.plays = book.plays.filter((x) => x !== p); sync.deleted.add(p.id); sync.dirty.delete(p.id); save(); state.edit = null; state.playId = listPlays()[0]?.id || null; renderSide(); renderPlay(); }
+});
+$("#btn-new").onclick = () => {
+  const name = (prompt(`Name the new ${state.side === "O" ? "offense" : "defense"} play`) || "").trim(); if (!name) return;
+  const pkg = state.pkg || book.pkgs[state.side][0]?.id || null;
+  const at = structuredClone(FIVE_OUT); if (state.side === "D") Object.assign(at, guardSpots(at));
+  const p = { id: "h_" + uid(), name, side: state.side, pkg, ball: "O1", at, beats: [{ say: "", m: {} }], notes: "" };
+  book.plays.push(p); state.playId = p.id; store.set("hoops.play", p.id); sync.dirty.add(p.id); save();
+  renderSide(); state.edit = { step: -1, tool: "cut", sel: null, undo: [] }; renderPlay(); toStage();
+};
+$("#btn-newpkg").onclick = () => {
+  const name = (prompt(`New ${state.side === "O" ? "offense" : "defense"} package name (e.g. “Press break”, “Out of bounds”)`) || "").trim(); if (!name) return;
+  const k = { id: "k_" + uid(), name }; book.pkgs[state.side].push(k); state.pkg = k.id; store.set("hoops.pkg", k.id); sync.pkgsDirty = true; save(); renderSide();
+};
+
+// dragging on the court
+const svgEl = $("#court");
+function toCourt(e) { const pt = svgEl.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(svgEl.getScreenCTM().inverse()); return [q.x, q.y]; }
+function hitPlayer(p, xy) {
+  let best = null, bd = 2.6;
+  const b = state.edit?.step >= 0 ? p.beats[state.edit.step] : null;
+  for (const id of Object.keys(p.at)) {
+    const spots = [posAt(p, id, state.t)], m = b?.m?.[id]; if (m) spots.push(m.pts[m.pts.length - 1]); // where he starts this step, or where his line ends
+    for (const q of spots) { const d = Math.hypot(q[0] - xy[0], q[1] - xy[1]); if (d < bd) { bd = d; best = id; } }
+  }
+  return best;
+}
+svgEl.addEventListener("pointerdown", (e) => {
+  const p = cur(), ed = state.edit; if (!p || !ed) return;
+  e.preventDefault();
+  const xy = toCourt(e), id = hitPlayer(p, xy);
+  if (!id) { ed.sel = null; renderEditbar(); draw(); return; }
+  const from = posAt(p, id, state.t);
+  drag = { id, from, cur: xy, trail: [from], moved: false }; svgEl.setPointerCapture(e.pointerId);
+});
+svgEl.addEventListener("pointermove", (e) => {
+  if (!drag) return; const xy = toCourt(e); drag.cur = clampCourt(xy);
+  if (!drag.moved && Math.hypot(xy[0] - drag.from[0], xy[1] - drag.from[1]) > 1) drag.moved = true;
+  if (drag.moved) { const l = drag.trail[drag.trail.length - 1]; if (Math.hypot(xy[0] - l[0], xy[1] - l[1]) > 0.8) drag.trail.push(xy); draw(); }
+});
+function bendPts(trail, end) {
+  const a = trail[0]; let far = null, fd = 0;
+  const dx = end[0] - a[0], dy = end[1] - a[1], L = Math.hypot(dx, dy) || 1;
+  for (const q of trail) { const d = Math.abs((q[0] - a[0]) * dy - (q[1] - a[1]) * dx) / L; if (d > fd) { fd = d; far = q; } }
+  return fd > 2 ? [clampCourt(far), end] : [end];
+}
+function endDrag() {
+  const d = drag; drag = null; if (!d) return;
+  const p = cur(), ed = state.edit; if (!p || !ed) return;
+  if (ed.step < 0) {
+    if (d.moved) { pushUndo(); p.at[d.id] = d.cur; ed.sel = d.id; changed(p); }
+    else { ed.sel = ed.sel === d.id ? null : d.id; renderEditbar(); draw(); }
+    return;
+  }
+  const b = p.beats[ed.step]; b.m = b.m || {};
+  const holder = holderAt(p, ed.step), isX = d.id[0] === "X";
+  if (d.moved && ["cut", "drib", "screen", "pass", "shoot", "trap"].includes(ed.tool)) {
+    pushUndo();
+    let k = isX ? "slide" : ed.tool === "drib" || ed.tool === "screen" ? ed.tool : "cut";
+    if (k === "drib" && d.id !== holder) k = "cut";
+    b.m[d.id] = { k, pts: bendPts(d.trail, d.cur) }; ed.sel = d.id; changed(p); return;
+  }
+  // taps
+  if (ed.tool === "pass") {
+    if (!holder) { alert("Nobody has the ball in this step (it was shot)."); return; }
+    if (d.id === holder) { ed.sel = d.id; renderEditbar(); draw(); return; }
+    pushUndo(); if (b.pass === d.id) { delete b.pass; delete b.lob; } else { b.pass = d.id; delete b.shot; } autoLabel(b); changed(p); return;
+  }
+  if (ed.tool === "shoot") {
+    if (d.id !== holder) { alert(holder ? `Only the player with the ball can shoot (${holder[0] === "X" ? holder : holder.slice(1)}).` : "Nobody has the ball in this step."); return; }
+    pushUndo(); if (b.shot) delete b.shot; else { b.shot = true; delete b.pass; delete b.lob; } autoLabel(b); changed(p); return;
+  }
+  if (ed.tool === "trap") {
+    if (!isX) { alert("Tap two defenders (the red ones) to trap the ball."); return; }
+    if (!holder || holder[0] === "X") { alert("The other team has to have the ball to trap it."); return; }
+    pushUndo(); const by = new Set(b.trap?.by || []); if (by.has(d.id)) by.delete(d.id); else { if (by.size >= 2) by.delete([...by][0]); by.add(d.id); }
+    if (by.size) b.trap = { on: b.pass || holder, by: [...by] }; else delete b.trap; autoLabel(b); changed(p); return;
+  }
+  ed.sel = ed.sel === d.id ? null : d.id; renderEditbar(); draw();
+}
+svgEl.addEventListener("pointerup", endDrag);
+svgEl.addEventListener("pointercancel", () => { drag = null; draw(); });
+
+// ---------------------------------------------------------------- shared save (everyone with the link)
+const API = "https://nxt-playbook-api.nxtplaybook.workers.dev";
+const sync = { rev: null, local: false, timer: null, saving: false, dirty: new Set(), deleted: new Set(), pkgsDirty: false };
+function setSync(text, tone = "") { const el = $("#sync"); el.textContent = text; el.dataset.tone = tone; }
+function save() {
+  store.set("hoops.book", book);
+  if (sync.local) { setSync("Saved on this tablet", "warn"); return; }
+  setSync("Saving…"); clearTimeout(sync.timer); sync.timer = setTimeout(push, 700);
+}
+async function push() {
+  if (sync.saving) { sync.timer = setTimeout(push, 400); return; }
+  sync.saving = true;
+  try {
+    const r = await fetch(API + "/hoops", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ book, base: sync.rev }) });
+    if (r.status === 409) { const cur2 = await r.json(); mergeFrom(cur2.book); sync.rev = cur2.rev; sync.saving = false; return push(); }
+    if (!r.ok) throw new Error(r.status);
+    sync.rev = (await r.json()).rev; sync.dirty.clear(); sync.deleted.clear(); sync.pkgsDirty = false;
+    setSync("All changes saved", "ok");
+  } catch { setSync("Not saved yet: no connection. Keep going; it'll retry.", "warn"); sync.timer = setTimeout(push, 8000); }
+  sync.saving = false;
+}
+/** Someone else saved first: take their book, then put my changes back on top. */
+function mergeFrom(theirs) {
+  const mine = new Map(book.plays.map((p) => [p.id, p]));
+  const plays = (theirs.plays || []).filter((p) => !sync.deleted.has(p.id)).map((p) => (sync.dirty.has(p.id) && mine.has(p.id) ? mine.get(p.id) : p));
+  for (const id of sync.dirty) if (mine.has(id) && !plays.some((p) => p.id === id)) plays.push(mine.get(id));
+  const pkgs = theirs.pkgs || structuredClone(DEFAULT_PKGS);
+  for (const side of ["O", "D"]) for (const k of book.pkgs[side]) if (!pkgs[side].some((x) => x.id === k.id)) pkgs[side].push(k);
+  book = { ...theirs, plays, pkgs };
+}
+async function load() {
+  try {
+    const r = await fetch(API + "/hoops", { cache: "no-store" });
+    if (r.status === 404) throw Object.assign(new Error("no hoops api"), { local: true });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json(); sync.rev = d.rev;
+    if (d.book) book = d.book;
+    else { const saved = store.get("hoops.book", null); if (saved?.plays) book = saved; sync.dirty = new Set(book.plays.map((p) => p.id)); save(); } // first time: put the starting plays on the server
+    setSync("All changes saved", "ok");
+  } catch (err) {
+    sync.local = true; const saved = store.get("hoops.book", null); if (saved?.plays) book = saved;
+    setSync(err.local ? "Saved on this tablet" : "Offline: changes stay on this tablet", "warn");
+  }
+}
+async function poll() {
+  if (sync.local || state.edit || sync.dirty.size || sync.saving || document.hidden) return;
+  try { const r = await (await fetch(API + "/hoops/rev", { cache: "no-store" })).json(); if (r.rev && r.rev !== sync.rev) { const d = await (await fetch(API + "/hoops", { cache: "no-store" })).json(); if (d.book) { book = d.book; sync.rev = d.rev; store.set("hoops.book", book); renderSide(); renderPlay(); } } } catch {}
+}
+setInterval(poll, 15000);
+document.addEventListener("visibilitychange", poll);
+
+(async () => {
+  renderSide(); renderPlay();
+  await load();
+  if (!cur()) state.playId = listPlays()[0]?.id || null;
+  else state.side = cur().side;
+  renderSide(); renderPlay();
+})();
+
 </script>
 </body>
 </html>

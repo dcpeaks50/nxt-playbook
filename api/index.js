@@ -4,6 +4,8 @@
 // PUT  /playbook       -> { rev, updated }            body: { book }   (?backup=1 forces a backup of the current version first)
 // GET  /backups        -> [{ id, at, plays }]          newest first
 // GET  /backups/:id    -> { book, at }
+// Basketball has its own book (row 2) and its own backups table, so football and basketball never overwrite each other:
+// GET /hoops/rev, GET /hoops, PUT /hoops (body { book, base }: 409 + the current book if someone saved since base), GET /hoops/backups, GET /hoops/backups/:id
 
 const ALLOWED = ["https://dcpeaks50.github.io", "http://localhost:8765", "null"];
 const MAX_BYTES = 3_000_000;
@@ -23,6 +25,7 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "") || "/";
 
+    if (path === "/hoops" || path.startsWith("/hoops/")) return hoops(req, env, url, path, json);
     if (req.method === "GET" && path === "/rev") {
       const row = await env.DB.prepare("SELECT rev, updated FROM playbook WHERE id = 1").first();
       return json(row || { rev: 0, updated: null });
@@ -66,3 +69,36 @@ export default {
     return json({ error: "Not found." }, 404);
   },
 };
+
+async function hoops(req, env, url, path, json) {
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS hoops_backups (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, json TEXT NOT NULL, plays INTEGER NOT NULL DEFAULT 0)").run();
+  const row = () => env.DB.prepare("SELECT json, rev, updated FROM playbook WHERE id = 2").first();
+  if (req.method === "GET" && path === "/hoops/rev") { const r = await env.DB.prepare("SELECT rev, updated FROM playbook WHERE id = 2").first(); return json(r || { rev: 0, updated: null }); }
+  if (req.method === "GET" && path === "/hoops") { const r = await row(); return json(r ? { book: JSON.parse(r.json), rev: r.rev, updated: r.updated } : { book: null, rev: 0, updated: null }); }
+  if (req.method === "PUT" && path === "/hoops") {
+    const text = await req.text();
+    if (text.length > MAX_BYTES) return json({ error: "Playbook is too big." }, 413);
+    let body; try { body = JSON.parse(text); } catch { return json({ error: "Bad JSON." }, 400); }
+    const book = body?.book;
+    if (!book || !Array.isArray(book.plays)) return json({ error: "That isn't a basketball playbook." }, 400);
+    const cur = await row(), now = Date.now();
+    if (cur && body.base != null && body.base !== cur.rev) return json({ conflict: true, book: JSON.parse(cur.json), rev: cur.rev, updated: cur.updated }, 409);
+    if (cur) {
+      const last = await env.DB.prepare("SELECT MAX(at) AS at FROM hoops_backups").first();
+      if (url.searchParams.get("backup") === "1" || !last?.at || now - last.at > BACKUP_EVERY_MS) {
+        let plays = 0; try { plays = JSON.parse(cur.json).plays.length; } catch {}
+        await env.DB.batch([
+          env.DB.prepare("INSERT INTO hoops_backups (at, json, plays) VALUES (?, ?, ?)").bind(now, cur.json, plays),
+          env.DB.prepare(`DELETE FROM hoops_backups WHERE id NOT IN (SELECT id FROM hoops_backups ORDER BY at DESC LIMIT ${KEEP_BACKUPS})`),
+        ]);
+      }
+    }
+    const rev = (cur?.rev || 0) + 1;
+    await env.DB.prepare("INSERT OR REPLACE INTO playbook (id, json, rev, updated) VALUES (2, ?, ?, ?)").bind(JSON.stringify(book), rev, now).run();
+    return json({ rev, updated: now });
+  }
+  if (req.method === "GET" && path === "/hoops/backups") { const { results } = await env.DB.prepare("SELECT id, at, plays FROM hoops_backups ORDER BY at DESC").all(); return json(results); }
+  const m = /^\/hoops\/backups\/(\d+)$/.exec(path);
+  if (req.method === "GET" && m) { const r = await env.DB.prepare("SELECT json, at FROM hoops_backups WHERE id = ?").bind(+m[1]).first(); return r ? json({ book: JSON.parse(r.json), at: r.at }) : json({ error: "Not found." }, 404); }
+  return json({ error: "Not found." }, 404);
+}
